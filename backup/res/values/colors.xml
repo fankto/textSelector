@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Metallic Gold Palette -->
+    <color name="gold_highlight">#E2D6A4</color>
+    <color name="gold_shine">#DECB7E</color>
+    <color name="gold_light">#D0BD49</color>
+    <color name="gold_primary">#C09B23</color>
+    <color name="gold_shadow">#B3901C</color>
+    <color name="gold_dark">#A88917</color>
+    <color name="gold_darkest">#9B8014</color>
+
+    <!-- Rose Gold (for delete) -->
+    <color name="rose_gold_highlight">#E6C5C5</color>
+    <color name="rose_gold_shine">#D4A5A5</color>
+    <color name="rose_gold_light">#C28585</color>
+    <color name="rose_gold_primary">#B06565</color>
+    <color name="rose_gold_shadow">#9E4545</color>
+    <color name="rose_gold_dark">#8C2525</color>
+
+    <!-- White Gold (for edit) -->
+    <color name="white_gold_highlight">#E6E8E6</color>
+    <color name="white_gold_shine">#D4D8D4</color>
+    <color name="white_gold_light">#C2C8C2</color>
+    <color name="white_gold_primary">#B0B8B0</color>
+    <color name="white_gold_shadow">#9EA89E</color>
+    <color name="white_gold_dark">#8C988C</color>
+
+    <!-- Light Theme Colors -->
+    <color name="light_background">#D7D7D7</color>
+    <color name="light_surface">#F0F0F0</color>
+    <color name="light_text_primary">#141414</color>
+    <color name="light_text_secondary">#2D2D2D</color>
+    <color name="light_text_tertiary">#4B4B4B</color>
+
+    <!-- Dark Theme Colors -->
+    <color name="dark_background">#282828</color>
+    <color name="dark_surface">#0F0F0F</color>
+    <color name="dark_text_primary">#EBEBEB</color>
+    <color name="dark_text_secondary">#D2D2D2</color>
+    <color name="dark_text_tertiary">#B4B4B4</color>
+</resources>

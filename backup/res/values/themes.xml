@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.TextSelector" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorPrimaryVariant">@color/gold_dark</item>
+        <item name="colorOnPrimary">@color/light_text_primary</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/gold_light</item>
+        <item name="colorSecondaryVariant">@color/gold_shine</item>
+        <item name="colorOnSecondary">@color/light_text_primary</item>
+
+        <!-- Status bar and navigation -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Background colors -->
+        <item name="android:windowBackground">@color/light_background</item>
+        <item name="colorSurface">@color/light_surface</item>
+        <item name="colorOnSurface">@color/light_text_primary</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/light_text_primary</item>
+        <item name="android:textColorSecondary">@color/light_text_secondary</item>
+        <item name="android:textColorTertiary">@color/light_text_tertiary</item>
+
+        <!-- Custom attributes -->
+        <item name="metallic_gold_gradient">@drawable/gradient_metallic_gold</item>
+        <item name="metallic_rose_gold_gradient">@drawable/gradient_rose_gold</item>
+        <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
+    </style>
+
+    <!-- Dark theme -->
+    <style name="Theme.TextSelector.Dark" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Colors remain same as light theme -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorPrimaryVariant">@color/gold_dark</item>
+        <item name="colorOnPrimary">@color/dark_text_primary</item>
+
+        <!-- Background colors -->
+        <item name="android:windowBackground">@color/dark_background</item>
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/dark_text_primary</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/dark_text_primary</item>
+        <item name="android:textColorSecondary">@color/dark_text_secondary</item>
+        <item name="android:textColorTertiary">@color/dark_text_tertiary</item>
+
+        <!-- Status bar and navigation -->
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

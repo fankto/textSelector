@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">textSelector</string>
+    <string name="pin_start">Pin Start</string>
+    <string name="pin_end">Pin End</string>
+    <string name="load">Load</string>
+    <string name="save">Save</string>
+    <string name="search">Search</string>
+    <string name="search_term">Search term</string>
+    <string name="paste">Paste</string>
+    <string name="selection_name">Selection Name</string>
+</resources>
