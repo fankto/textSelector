@@ -8,6 +8,9 @@
     <string name="search_term">Search term</string>
     <string name="paste">Paste</string>
     <string name="selection_name">Selection Name</string>
-    <string name="edit">Edit</string>
-    <string name="delete">Delete</string>
+    <string name="save_selection">Save Selection</string>
+    <string name="preview">Preview</string>
+    <string name="cancel">Cancel</string>
+    <string name="library">Library</string>
+    <string name="saved_selections">Saved Selections</string>
 </resources>

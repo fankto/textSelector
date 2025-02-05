@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="TextSelector">
+        <!-- Custom gradient drawables -->
+        <attr name="metallic_gold_gradient" format="reference" />
+        <attr name="metallic_rose_gold_gradient" format="reference" />
+        <attr name="metallic_white_gold_gradient" format="reference" />
+    </declare-styleable>
+</resources>

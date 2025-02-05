@@ -1,21 +1,28 @@
-// app/src/main/java/com/example/textselector/MainActivity.kt
 package com.example.textselector
 
-import android.content.ClipData
-import android.content.ClipboardManager
 import android.content.Context
 import android.os.Bundle
-import android.widget.ArrayAdapter
-import androidx.appcompat.app.AlertDialog
+import android.view.Menu
+import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import com.example.textselector.databinding.ActivityMainBinding
+import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.json.JSONArray
 import org.json.JSONObject
+import com.google.android.material.snackbar.Snackbar
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.widget.EditText
+import android.widget.TextView
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.textfield.TextInputEditText
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-
-    // Key to store texts in SharedPreferences as a JSON array.
     private val PREFS_KEY = "saved_texts"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -23,114 +30,258 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // If started with a SEND intent, load the text.
+        setupToolbar()
+        setupTextArea()
+        setupSaveButton()
+
+        // If started with a SEND intent, load the text
         if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
             intent.getStringExtra("android.intent.extra.TEXT")?.let {
                 binding.pinnedEditText.setText(it)
             }
-        } else {
-            // Otherwise, load a sample text
-            binding.pinnedEditText.setText(getLongText())
-        }
-
-        // Paste button: get text from clipboard.
-        binding.pasteButton.setOnClickListener {
-            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clipData = clipboard.primaryClip
-            if (clipData != null && clipData.itemCount > 0) {
-                val pasteText = clipData.getItemAt(0).text.toString()
-                binding.pinnedEditText.setText(pasteText)
-            }
-        }
-
-        // Search: scroll to first occurrence of the search term.
-        binding.searchButton.setOnClickListener {
-            val searchTerm = binding.searchEditText.text.toString()
-            if (searchTerm.isEmpty()) return@setOnClickListener
-
-            val text = binding.pinnedEditText.text.toString()
-            // Start search from after the current selection.
-            val startIndex = binding.pinnedEditText.selectionEnd
-            var index = text.indexOf(searchTerm, startIndex)
-            // If not found after current selection, wrap-around to search from the beginning.
-            if (index == -1 && startIndex > 0) {
-                index = text.indexOf(searchTerm, 0)
-            }
-            if (index >= 0) {
-                binding.pinnedEditText.setSelection(index, index + searchTerm.length)
-                binding.pinnedEditText.requestFocus()
-            }
-        }
-
-
-        // Save: persist the current text and pin positions.
-        binding.saveButton.setOnClickListener {
-            saveCurrentText()
-        }
-
-        // Load: show saved texts in a dialog.
-        binding.loadButton.setOnClickListener {
-            loadSavedTexts()
         }
     }
 
-    private fun getLongText(): String {
-        val lorem = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. "
-        return lorem.repeat(300)
-    }
-
-    /** Save the current text (and pin positions) to SharedPreferences.  */
-    private fun saveCurrentText() {
-        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
-        val jsonArray = JSONArray(prefs.getString(PREFS_KEY, "[]"))
-        val obj = JSONObject().apply {
-            put("text", binding.pinnedEditText.text.toString())
-            put("pinnedStart", binding.pinnedEditText.pinnedStart ?: JSONObject.NULL)
-            put("pinnedEnd", binding.pinnedEditText.pinnedEnd ?: JSONObject.NULL)
-        }
-        jsonArray.put(obj)
-        prefs.edit().putString(PREFS_KEY, jsonArray.toString()).apply()
-    }
-
-    /** Load saved texts and let the user choose one to load.  */
-    private fun loadSavedTexts() {
-        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
-        val jsonArray = JSONArray(prefs.getString(PREFS_KEY, "[]"))
-        if (jsonArray.length() == 0) return
-
-        // Create a simple list (using the first 40 characters as a preview).
-        val listItems = mutableListOf<String>()
-        val texts = mutableListOf<JSONObject>()
-        for (i in 0 until jsonArray.length()) {
-            val obj = jsonArray.getJSONObject(i)
-            val preview = obj.getString("text").take(40) + "..."
-            listItems.add(preview)
-            texts.add(obj)
-        }
-        val adapter = ArrayAdapter(this, android.R.layout.simple_list_item_1, listItems)
-        AlertDialog.Builder(this)
-            .setTitle("Load Saved Text")
-            .setAdapter(adapter) { dialog, which ->
-                val obj = texts[which]
-                binding.pinnedEditText.setText(obj.getString("text"))
-                binding.pinnedEditText.pinnedStart =
-                    if (obj.isNull("pinnedStart")) null else obj.getInt("pinnedStart")
-                binding.pinnedEditText.pinnedEnd =
-                    if (obj.isNull("pinnedEnd")) null else obj.getInt("pinnedEnd")
-                // If both pins exist, update selection.
-                if (binding.pinnedEditText.pinnedStart != null && binding.pinnedEditText.pinnedEnd != null) {
-                    val start = minOf(
-                        binding.pinnedEditText.pinnedStart!!,
-                        binding.pinnedEditText.pinnedEnd!!
-                    )
-                    val end = maxOf(
-                        binding.pinnedEditText.pinnedStart!!,
-                        binding.pinnedEditText.pinnedEnd!!
-                    )
-                    binding.pinnedEditText.setSelection(start, end)
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        // Set up the SearchView.
+        val searchItem = menu.findItem(R.id.action_search)
+        val searchView = searchItem.actionView as? SearchView
+        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?): Boolean {
+                query?.let {
+                    binding.pinnedEditText.highlightSearch(it)
                 }
+                return true
+            }
+            override fun onQueryTextChange(newText: String?): Boolean {
+                if (newText.isNullOrEmpty()) {
+                    binding.pinnedEditText.clearHighlights()
+                }
+                return true
+            }
+        })
+        return true
+    }
+
+    private fun setupToolbar() {
+        binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_library -> {
+                    showSavedSelections()
+                    true
+                }
+                else -> false
+            }
+        }
+    }
+
+    private fun setupTextArea() {
+        binding.pinnedEditText.doAfterTextChanged { text ->
+            binding.saveFab.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun setupSaveButton() {
+        binding.saveFab.apply {
+            visibility = View.GONE
+            setOnClickListener {
+                animateSaveButton {
+                    showSaveBottomSheet()
+                }
+            }
+        }
+    }
+
+    private fun animateSaveButton(onAnimationEnd: () -> Unit) {
+        binding.saveFab.animate()
+            .scaleX(0.8f)
+            .scaleY(0.8f)
+            .setDuration(100)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                binding.saveFab.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction(onAnimationEnd)
+                    .start()
+            }
+            .start()
+    }
+
+    private fun showSaveBottomSheet() {
+        val selectedText = binding.pinnedEditText.text?.substring(
+            binding.pinnedEditText.selectionStart,
+            binding.pinnedEditText.selectionEnd
+        ) ?: return
+
+        val bottomSheetDialog = BottomSheetDialog(this)
+        val bottomSheetView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        bottomSheetDialog.setContentView(bottomSheetView)
+
+        // Get views with proper types
+        val nameInput = bottomSheetView.findViewById<TextInputEditText>(R.id.nameInput)
+        val previewText = bottomSheetView.findViewById<TextView>(R.id.previewText)
+        val saveButton = bottomSheetView.findViewById<MaterialButton>(R.id.saveButton)
+        val cancelButton = bottomSheetView.findViewById<MaterialButton>(R.id.cancelButton)
+
+        // Generate a default name and set it using setText()
+        val defaultName = selectedText.take(50).replace("\n", " ")
+            .split(" ").take(5).joinToString(" ")
+        nameInput.setText(defaultName)
+
+        // Show preview text
+        previewText.text = selectedText
+
+        saveButton.setOnClickListener {
+            val name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: defaultName
+            saveSelection(SavedSelection(name = name, text = selectedText))
+            bottomSheetDialog.dismiss()
+            showSuccessSnackbar("Selection saved")
+        }
+
+        cancelButton.setOnClickListener { bottomSheetDialog.dismiss() }
+
+        bottomSheetDialog.show()
+    }
+
+    private fun showSavedSelections() {
+        try {
+            // Inflate the dialog layout containing the RecyclerView.
+            val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
+            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            recyclerView.layoutManager = LinearLayoutManager(this)
+            val selections = loadSavedSelectionsFromPrefs().sortedByDescending { it.timestamp }
+
+            val dialog = MaterialAlertDialogBuilder(this)
+                .setView(dialogView)
+                .create()
+
+            // Declare adapter as nullable so it can be captured in lambdas.
+            var adapter: SavedSelectionsAdapter? = null
+            adapter = SavedSelectionsAdapter(
+                selections = selections,
+                onItemClick = { selection ->
+                    binding.pinnedEditText.clearSelectionPins()
+                    binding.pinnedEditText.setText(selection.text)
+                    dialog.dismiss()
+                },
+                onDeleteClick = { selection ->
+                    showDeleteConfirmationDialog(selection) {
+                        adapter?.updateSelections(loadSavedSelectionsFromPrefs().sortedByDescending { it.timestamp })
+                    }
+                },
+                onEditClick = { selection ->
+                    showEditDialog(selection) {
+                        adapter?.updateSelections(loadSavedSelectionsFromPrefs().sortedByDescending { it.timestamp })
+                    }
+                }
+            )
+            recyclerView.adapter = adapter
+            dialog.show()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Snackbar.make(binding.root, "Error loading selections", Snackbar.LENGTH_SHORT).show()
+        }
+    }
+
+
+    private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Delete Selection")
+            .setMessage("Are you sure you want to delete '${selection.name}'?")
+            .setPositiveButton("Delete") { _, _ ->
+                deleteSelection(selection)
+                onDeleted()
+                showSuccessSnackbar("Selection deleted")
             }
             .setNegativeButton("Cancel", null)
             .show()
+    }
+
+    private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
+        val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        val nameInput = dialogView.findViewById<EditText>(R.id.nameInput)
+        nameInput.setText(selection.name)
+
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Edit Selection")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val updatedSelection = selection.copy(
+                    name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: selection.name
+                )
+                updateSelection(updatedSelection)
+                onEdited()
+                showSuccessSnackbar("Selection updated")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSuccessSnackbar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)
+            .setBackgroundTint(getColor(R.color.gold_primary))
+            .setTextColor(getColor(R.color.light_text_primary))
+            .show()
+    }
+
+    private fun saveSelection(selection: SavedSelection) {
+        val selections = loadSavedSelectionsFromPrefs().toMutableList()
+        selections.add(selection)
+        saveSelectionsToPrefs(selections)
+    }
+
+    private fun updateSelection(selection: SavedSelection) {
+        val selections = loadSavedSelectionsFromPrefs().toMutableList()
+        val index = selections.indexOfFirst { it.id == selection.id }
+        if (index != -1) {
+            selections[index] = selection
+            saveSelectionsToPrefs(selections)
+        }
+    }
+
+    private fun deleteSelection(selection: SavedSelection) {
+        val selections = loadSavedSelectionsFromPrefs().toMutableList()
+        selections.removeAll { it.id == selection.id }
+        saveSelectionsToPrefs(selections)
+    }
+
+    private fun loadSavedSelectionsFromPrefs(): List<SavedSelection> {
+        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+        val jsonString = prefs.getString(PREFS_KEY, "[]") ?: "[]"
+        return try {
+            val jsonArray = JSONArray(jsonString)
+            List(jsonArray.length()) { index ->
+                val obj = jsonArray.getJSONObject(index)
+                SavedSelection(
+                    id = obj.optLong("id", System.currentTimeMillis()),
+                    name = obj.getString("name"),
+                    text = obj.getString("text"),
+                    timestamp = obj.optLong("timestamp", System.currentTimeMillis())
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
+    private fun saveSelectionsToPrefs(selections: List<SavedSelection>) {
+        val jsonArray = JSONArray()
+        selections.forEach { selection ->
+            jsonArray.put(JSONObject().apply {
+                put("id", selection.id)
+                put("name", selection.name)
+                put("text", selection.text)
+                put("timestamp", selection.timestamp)
+            })
+        }
+        getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+            .edit()
+            .putString(PREFS_KEY, jsonArray.toString())
+            .apply()
     }
 }
