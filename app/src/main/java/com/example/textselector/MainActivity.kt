@@ -1,3 +1,4 @@
+// app/src/main/java/com/example/textselector/MainActivity.kt
 package com.example.textselector
 
 import android.content.Context
@@ -13,6 +14,7 @@ import org.json.JSONObject
 import com.google.android.material.snackbar.Snackbar
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -33,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         setupToolbar()
         setupTextArea()
         setupSaveButton()
+        setupSearchNavigation()
 
         // If started with a SEND intent, load the text
         if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
@@ -51,12 +54,15 @@ class MainActivity : AppCompatActivity() {
             override fun onQueryTextSubmit(query: String?): Boolean {
                 query?.let {
                     binding.pinnedEditText.highlightSearch(it)
+                    updateSearchNavigation() // update the counter text
+                    binding.searchNavigation.visibility = View.VISIBLE
                 }
                 return true
             }
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (newText.isNullOrEmpty()) {
                     binding.pinnedEditText.clearHighlights()
+                    binding.searchNavigation.visibility = View.GONE
                 }
                 return true
             }
@@ -164,7 +170,9 @@ class MainActivity : AppCompatActivity() {
             adapter = SavedSelectionsAdapter(
                 selections = selections,
                 onItemClick = { selection ->
+                    // Clear any pins or search state before loading the saved text.
                     binding.pinnedEditText.clearSelectionPins()
+                    binding.pinnedEditText.clearHighlights()
                     binding.pinnedEditText.setText(selection.text)
                     dialog.dismiss()
                 },
@@ -187,6 +195,27 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setupSearchNavigation() {
+        // Access the search navigation container from the binding
+        val btnPrev = binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev)
+        val btnNext = binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext)
+
+        btnPrev.setOnClickListener {
+            binding.pinnedEditText.previousSearchResult()
+            updateSearchNavigation()
+        }
+        btnNext.setOnClickListener {
+            binding.pinnedEditText.nextSearchResult()
+            updateSearchNavigation()
+        }
+    }
+
+    private fun updateSearchNavigation() {
+        val count = binding.pinnedEditText.getSearchResultsCount()
+        val current = binding.pinnedEditText.getCurrentSearchIndex()
+        val txtSearchCount = binding.searchNavigation.findViewById<TextView>(R.id.txtSearchCount)
+        txtSearchCount.text = "$current/$count"
+    }
 
     private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
         MaterialAlertDialogBuilder(this)

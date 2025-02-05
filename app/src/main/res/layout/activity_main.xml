@@ -44,4 +44,42 @@
         app:backgroundTint="@color/gold_primary"
         app:tint="?attr/colorOnPrimary" />
 
+    <!-- res/layout/activity_main.xml -->
+    <LinearLayout
+        android:id="@+id/searchNavigation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|end"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:background="@drawable/search_nav_background"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnPrev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_up"
+            android:contentDescription="@string/previous_result"/>
+
+        <TextView
+            android:id="@+id/txtSearchCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0/0"
+            android:textColor="@color/light_text_primary"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"/>
+
+        <ImageButton
+            android:id="@+id/btnNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_arrow_down"
+            android:contentDescription="@string/next_result"/>
+    </LinearLayout>
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
+

@@ -31,6 +31,10 @@ class PinnedEditText @JvmOverloads constructor(
     private var lastTapTime = 0L
     private val tripleTapThreshold = 500L // milliseconds
 
+    // --- New search navigation support ---
+    private var searchResults: List<IntRange> = emptyList()
+    private var currentSearchIndex: Int = 0
+
     // Gesture detector for double taps.
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -165,6 +169,26 @@ class PinnedEditText @JvmOverloads constructor(
             setSelection(pinnedStart!!, pinnedEnd!!)
         }
     }
+
+    fun nextSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last)
+        }
+    }
+
+    fun previousSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last)
+        }
+    }
+
+    fun getSearchResultsCount(): Int = searchResults.size
+
+    fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
 
     /**
      * Draws a small "PIN" indicator above the start of the pinned selection.
