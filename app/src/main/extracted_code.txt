@@ -117,12 +117,16 @@ package com.example.textselector
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.style.BackgroundColorSpan
 import android.util.AttributeSet
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
+import android.widget.TextView
 import androidx.appcompat.widget.AppCompatEditText
 import androidx.core.content.ContextCompat
 import kotlin.math.abs
@@ -148,6 +152,16 @@ class PinnedEditText @JvmOverloads constructor(
     // --- New search navigation support ---
     private var searchResults: List<IntRange> = emptyList()
     private var currentSearchIndex: Int = 0
+
+    init {
+        // Disable the default selection color so our spans show through.
+        highlightColor = android.graphics.Color.TRANSPARENT
+        if (text !is Editable) {
+            Log.d("PinnedEditText", "Converting text to Editable")
+            setText(Editable.Factory.getInstance().newEditable(text))
+        }
+    }
+
 
     // Gesture detector for double taps.
     private val gestureDetector =
@@ -244,62 +258,6 @@ class PinnedEditText @JvmOverloads constructor(
         return Pair(start, end)
     }
 
-    // --- Search Functionality (with a small change to preserve pinned state) ---
-
-    /**
-     * Highlights all occurrences of [query] in the text by applying a background color span.
-     * Ensure that R.color.searchHighlight is defined in your colors.xml.
-     */
-    fun highlightSearch(query: String) {
-        val originalText = text?.toString() ?: return
-        val spannable = SpannableString(originalText)
-        if (query.isNotEmpty()) {
-            // Use a case-insensitive search.
-            val regex = Regex(Pattern.quote(query), RegexOption.IGNORE_CASE)
-            regex.findAll(originalText).forEach { matchResult ->
-                spannable.setSpan(
-                    BackgroundColorSpan(ContextCompat.getColor(context, R.color.searchHighlight)),
-                    matchResult.range.first,
-                    matchResult.range.last + 1,
-                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
-        }
-        setText(spannable)
-        // Reapply any existing pinned selection (if still valid)
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
-    }
-
-    /**
-     * Clears any search highlights by resetting the text.
-     */
-    fun clearHighlights() {
-        val plainText = text?.toString() ?: ""
-        setText(plainText)
-        // Reapply selection if needed
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
-    }
-
-    fun nextSearchResult() {
-        if (searchResults.isNotEmpty()) {
-            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
-            val range = searchResults[currentSearchIndex]
-            setSelection(range.first, range.last)
-        }
-    }
-
-    fun previousSearchResult() {
-        if (searchResults.isNotEmpty()) {
-            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
-            val range = searchResults[currentSearchIndex]
-            setSelection(range.first, range.last)
-        }
-    }
-
     fun getSearchResultsCount(): Int = searchResults.size
 
     fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
@@ -317,6 +275,97 @@ class PinnedEditText @JvmOverloads constructor(
             canvas.drawText("PIN ACTIVE", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
         }
     }
+
+    fun updateSearch(query: String) {
+        Log.d("PinnedEditText", "updateSearch called with query: '$query'")
+
+        val editable = editableText
+        if (editable == null) {
+            Log.e("PinnedEditText", "Text is not editable!")
+            return
+        }
+        Log.d("PinnedEditText", "Current text content: '${editable.toString()}'")
+
+        clearSearchHighlights()
+        Log.d("PinnedEditText", "Cleared previous highlights")
+
+        if (query.isEmpty()) {
+            Log.d("PinnedEditText", "Empty query, returning")
+            return
+        }
+
+        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        Log.d("PinnedEditText", "Search highlight color: $searchHighlightColor")
+
+        try {
+            val regex = Regex(Regex.escape(query), RegexOption.IGNORE_CASE)
+            Log.d("PinnedEditText", "Created regex: ${regex.pattern}")
+
+            val text = editable.toString()
+            val matches = regex.findAll(text).toList()
+            Log.d("PinnedEditText", "Found ${matches.size} matches")
+
+            matches.forEach { match ->
+                Log.d("PinnedEditText", "Match at ${match.range}: '${match.value}'")
+                editable.setSpan(
+                    BackgroundColorSpan(searchHighlightColor),
+                    match.range.first,
+                    match.range.last + 1,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            searchResults = matches.map { it.range }
+            Log.d("PinnedEditText", "Set searchResults to ${searchResults.size} ranges")
+
+            if (searchResults.isNotEmpty()) {
+                currentSearchIndex = 0
+                val firstRange = searchResults[0]
+                Log.d("PinnedEditText", "Selecting first match: $firstRange")
+                setSelection(firstRange.first, firstRange.last + 1)
+            }
+
+            postInvalidate()
+            Log.d("PinnedEditText", "Search update complete")
+
+        } catch (e: Exception) {
+            Log.e("PinnedEditText", "Search failed", e)
+            e.printStackTrace()
+        }
+    }
+
+    fun nextSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+        }
+    }
+
+    fun previousSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+        }
+    }
+
+    fun clearSearchHighlights() {
+        val editable = text ?: return
+        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+        spans.forEach { span ->
+            if (span.backgroundColor == searchHighlightColor) {
+                editable.removeSpan(span)
+            }
+        }
+        searchResults = emptyList()
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+    }
+
 }
 
 
@@ -328,7 +377,9 @@ package com.example.textselector
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
@@ -338,6 +389,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.google.android.material.snackbar.Snackbar
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
@@ -353,60 +405,133 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY = "saved_texts"
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.d("MainActivity", "onCreate started")
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
+        Log.d("MainActivity", "Binding inflated")
         setContentView(binding.root)
 
-        setupToolbar()
-        setupTextArea()
-        setupSaveButton()
-        setupSearchNavigation()
+        // If the text area is empty, set some default text
+        if (binding.pinnedEditText.text.isNullOrEmpty()) {
+            Log.d("MainActivity", "Setting default text")
+            binding.pinnedEditText.setText(
+                "The quick brown fox jumps over the lazy dog.\n" +
+                        "This is a test string for searching. Fox, dog, and quick."
+            )
+        }
 
-        // If started with a SEND intent, load the text
+        Log.d("MainActivity", "About to setup toolbar")
+        setupToolbar()
+        Log.d("MainActivity", "About to setup text area")
+        setupTextArea()
+        Log.d("MainActivity", "About to setup save button")
+        setupSaveButton()
+        Log.d("MainActivity", "About to setup search navigation")
+        setupSearchNavigation()
+        Log.d("MainActivity", "onCreate complete")
+
+        // Handle SEND intent
         if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
+            Log.d("MainActivity", "Handling SEND intent")
             intent.getStringExtra("android.intent.extra.TEXT")?.let {
                 binding.pinnedEditText.setText(it)
             }
         }
     }
 
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        // Set up the SearchView.
-        val searchItem = menu.findItem(R.id.action_search)
-        val searchView = searchItem.actionView as? SearchView
-        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                query?.let {
-                    binding.pinnedEditText.highlightSearch(it)
-                    updateSearchNavigation() // update the counter text
-                    binding.searchNavigation.visibility = View.VISIBLE
-                }
+        Log.d("MainActivity", "onCreateOptionsMenu started")
+        try {
+            menuInflater.inflate(R.menu.menu_main, menu)
+            Log.d("MainActivity", "Menu inflated")
+
+            val searchItem = menu.findItem(R.id.action_search)
+            if (searchItem == null) {
+                Log.e("MainActivity", "Search item not found in menu!")
                 return true
+            }
+            Log.d("MainActivity", "Found search item: ${searchItem.title}")
+
+            val actionView = searchItem.actionView
+            if (actionView == null) {
+                Log.e("MainActivity", "Search item has no action view!")
+                return true
+            }
+            Log.d("MainActivity", "Action view type: ${actionView.javaClass.name}")
+
+            val searchView = actionView as? SearchView
+            if (searchView == null) {
+                Log.e("MainActivity", "Action view is not a SearchView!")
+                return true
+            }
+            Log.d("MainActivity", "Successfully cast to SearchView")
+
+            searchView.apply {
+                Log.d("MainActivity", "Configuring SearchView")
+                isIconified = false
+                queryHint = getString(R.string.search_term)
+
+                setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                    override fun onQueryTextSubmit(query: String?): Boolean {
+                        Log.d("MainActivity", "Search submitted: $query")
+                        return true
+                    }
+
+                    override fun onQueryTextChange(newText: String?): Boolean {
+                        Log.d("MainActivity", "Text changed: $newText")
+                        val queryText = newText.orEmpty()
+
+                        try {
+                            Log.d("MainActivity", "Calling updateSearch with: $queryText")
+                            binding.pinnedEditText.updateSearch(queryText)
+                            val resultCount = binding.pinnedEditText.getSearchResultsCount()
+                            Log.d("MainActivity", "Got $resultCount results")
+
+                            binding.searchNavigation.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+                            binding.bottomBanner.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+
+                            if (resultCount > 0) {
+                                updateSearchNavigation()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Search error", e)
+                        }
+
+                        return true
+                    }
+                })
+                Log.d("MainActivity", "Search listener setup complete")
             }
 
-            override fun onQueryTextChange(newText: String?): Boolean {
-                if (newText.isNullOrEmpty()) {
-                    binding.pinnedEditText.clearHighlights()
-                    binding.searchNavigation.visibility = View.GONE
-                }
-                return true
-            }
-        })
-        return true
+            Log.d("MainActivity", "onCreateOptionsMenu completed successfully")
+            return true
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in onCreateOptionsMenu", e)
+            return false
+        }
     }
 
     private fun setupToolbar() {
+        Log.d("MainActivity", "Setting up toolbar")
+        setSupportActionBar(binding.toolbar)  // Add this line if not already present
+        Log.d("MainActivity", "Set support action bar")
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            Log.d("MainActivity", "Menu item clicked: ${menuItem.itemId}")
             when (menuItem.itemId) {
                 R.id.action_library -> {
+                    Log.d("MainActivity", "Library action selected")
                     showSavedSelections()
                     true
                 }
-
-                else -> false
+                else -> {
+                    Log.d("MainActivity", "Unknown menu item: ${menuItem.itemId}")
+                    false
+                }
             }
         }
+        Log.d("MainActivity", "Toolbar setup complete")
     }
 
     private fun setupTextArea() {
@@ -500,7 +625,7 @@ class MainActivity : AppCompatActivity() {
                 onItemClick = { selection ->
                     // Clear any pins or search state before loading the saved text.
                     binding.pinnedEditText.clearSelectionPins()
-                    binding.pinnedEditText.clearHighlights()
+                    binding.pinnedEditText.clearSearchHighlights()
                     binding.pinnedEditText.setText(selection.text)
                     dialog.dismiss()
                 },
@@ -541,8 +666,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateSearchNavigation() {
         val count = binding.pinnedEditText.getSearchResultsCount()
         val current = binding.pinnedEditText.getCurrentSearchIndex()
-        val txtSearchCount = binding.searchNavigation.findViewById<TextView>(R.id.txtSearchCount)
-        txtSearchCount.text = "$current/$count"
+        val bannerText = if (count > 0) {
+            "PIN ACTIVE – $current / $count"
+        } else {
+            "PIN ACTIVE"
+        }
+        binding.tvBannerInfo.text = bannerText
     }
 
     private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
@@ -769,8 +898,8 @@ class MainActivity : AppCompatActivity() {
     <color name="dark_text_secondary">#D2D2D2</color>
     <color name="dark_text_tertiary">#B4B4B4</color>
 
-    <!-- Search Highlight -->
-    <color name="searchHighlight">#FFD700</color>
+    <!-- Search Highlight previously FFD700 -->
+    <color name="searchHighlight">#66FFD700</color>
 </resources>
 
 
@@ -871,6 +1000,7 @@ class MainActivity : AppCompatActivity() {
     <string name="saved_selections">Saved Selections</string>
     <string name="previous_result">Previous result</string>
     <string name="next_result">Next result</string>
+    <string name="pin_active">PIN ACTIVE</string>
 </resources>
 
 
@@ -1056,7 +1186,10 @@ class MainActivity : AppCompatActivity() {
             android:background="@android:color/transparent"
             app:menu="@menu/menu_main"
             app:title="@string/app_name"
-            app:titleTextAppearance="@style/TextAppearance.MetallicGold.Title" />
+            app:titleTextAppearance="@style/TextAppearance.MetallicGold.Title"
+            android:layout_marginTop="15dp"
+        />
+
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -1068,7 +1201,6 @@ class MainActivity : AppCompatActivity() {
         android:background="@android:color/transparent"
         android:gravity="top"
         android:padding="16dp"
-        android:textIsSelectable="true"
         android:textSize="16sp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
@@ -1119,6 +1251,28 @@ class MainActivity : AppCompatActivity() {
             android:src="@drawable/ic_arrow_down"
             android:contentDescription="@string/next_result"/>
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bottomBanner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:background="#AA000000"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvBannerInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/pin_active"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"/>
+
+    </LinearLayout>
+
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 

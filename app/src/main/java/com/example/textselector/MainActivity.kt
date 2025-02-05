@@ -5,6 +5,7 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
+import android.view.MenuItem
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.widget.doAfterTextChanged
@@ -30,67 +31,133 @@ class MainActivity : AppCompatActivity() {
     private val PREFS_KEY = "saved_texts"
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Log.d("MainActivity", "onCreate started")
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
+        Log.d("MainActivity", "Binding inflated")
         setContentView(binding.root)
 
-        setupToolbar()
-        setupTextArea()
-        setupSaveButton()
-        setupSearchNavigation()
+        // If the text area is empty, set some default text
+        if (binding.pinnedEditText.text.isNullOrEmpty()) {
+            Log.d("MainActivity", "Setting default text")
+            binding.pinnedEditText.setText(
+                "The quick brown fox jumps over the lazy dog.\n" +
+                        "This is a test string for searching. Fox, dog, and quick."
+            )
+        }
 
-        // If started with a SEND intent, load the text
+        Log.d("MainActivity", "About to setup toolbar")
+        setupToolbar()
+        Log.d("MainActivity", "About to setup text area")
+        setupTextArea()
+        Log.d("MainActivity", "About to setup save button")
+        setupSaveButton()
+        Log.d("MainActivity", "About to setup search navigation")
+        setupSearchNavigation()
+        Log.d("MainActivity", "onCreate complete")
+
+        // Handle SEND intent
         if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
+            Log.d("MainActivity", "Handling SEND intent")
             intent.getStringExtra("android.intent.extra.TEXT")?.let {
                 binding.pinnedEditText.setText(it)
             }
         }
     }
 
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        val searchItem = menu.findItem(R.id.action_search)
-        val searchView = searchItem.actionView as? SearchView
+        Log.d("MainActivity", "onCreateOptionsMenu started")
+        try {
+            menuInflater.inflate(R.menu.menu_main, menu)
+            Log.d("MainActivity", "Menu inflated")
 
-        searchView?.apply {
-            // Keep the SearchView expanded so that the query stays visible.
-            isIconified = false
-            imeOptions = EditorInfo.IME_ACTION_SEARCH
+            val searchItem = menu.findItem(R.id.action_search)
+            if (searchItem == null) {
+                Log.e("MainActivity", "Search item not found in menu!")
+                return true
+            }
+            Log.d("MainActivity", "Found search item: ${searchItem.title}")
 
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    // We handle live updates so no need to do extra work here.
-                    return true
-                }
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    val queryText = newText.orEmpty()
-                    if (queryText.isNotEmpty()) {
-                        binding.pinnedEditText.highlightSearch(queryText)
-                        updateSearchNavigation()  // Update your counter/up/down arrows, etc.
-                        // Also, show your bottom banner (see below)
-                        binding.bottomBanner.visibility = View.VISIBLE
-                    } else {
-                        binding.pinnedEditText.clearHighlights()
-                        binding.bottomBanner.visibility = View.GONE
+            val actionView = searchItem.actionView
+            if (actionView == null) {
+                Log.e("MainActivity", "Search item has no action view!")
+                return true
+            }
+            Log.d("MainActivity", "Action view type: ${actionView.javaClass.name}")
+
+            val searchView = actionView as? SearchView
+            if (searchView == null) {
+                Log.e("MainActivity", "Action view is not a SearchView!")
+                return true
+            }
+            Log.d("MainActivity", "Successfully cast to SearchView")
+
+            searchView.apply {
+                Log.d("MainActivity", "Configuring SearchView")
+                isIconified = false
+                queryHint = getString(R.string.search_term)
+
+                setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                    override fun onQueryTextSubmit(query: String?): Boolean {
+                        Log.d("MainActivity", "Search submitted: $query")
+                        return true
                     }
-                    return true
-                }
-            })
+
+                    override fun onQueryTextChange(newText: String?): Boolean {
+                        Log.d("MainActivity", "Text changed: $newText")
+                        val queryText = newText.orEmpty()
+
+                        try {
+                            Log.d("MainActivity", "Calling updateSearch with: $queryText")
+                            binding.pinnedEditText.updateSearch(queryText)
+                            val resultCount = binding.pinnedEditText.getSearchResultsCount()
+                            Log.d("MainActivity", "Got $resultCount results")
+
+                            binding.searchNavigation.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+                            binding.bottomBanner.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+
+                            if (resultCount > 0) {
+                                updateSearchNavigation()
+                            }
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "Search error", e)
+                        }
+
+                        return true
+                    }
+                })
+                Log.d("MainActivity", "Search listener setup complete")
+            }
+
+            Log.d("MainActivity", "onCreateOptionsMenu completed successfully")
+            return true
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error in onCreateOptionsMenu", e)
+            return false
         }
-        return true
     }
 
     private fun setupToolbar() {
+        Log.d("MainActivity", "Setting up toolbar")
+        setSupportActionBar(binding.toolbar)  // Add this line if not already present
+        Log.d("MainActivity", "Set support action bar")
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            Log.d("MainActivity", "Menu item clicked: ${menuItem.itemId}")
             when (menuItem.itemId) {
                 R.id.action_library -> {
+                    Log.d("MainActivity", "Library action selected")
                     showSavedSelections()
                     true
                 }
-
-                else -> false
+                else -> {
+                    Log.d("MainActivity", "Unknown menu item: ${menuItem.itemId}")
+                    false
+                }
             }
         }
+        Log.d("MainActivity", "Toolbar setup complete")
     }
 
     private fun setupTextArea() {
@@ -184,7 +251,7 @@ class MainActivity : AppCompatActivity() {
                 onItemClick = { selection ->
                     // Clear any pins or search state before loading the saved text.
                     binding.pinnedEditText.clearSelectionPins()
-                    binding.pinnedEditText.clearHighlights()
+                    binding.pinnedEditText.clearSearchHighlights()
                     binding.pinnedEditText.setText(selection.text)
                     dialog.dismiss()
                 },

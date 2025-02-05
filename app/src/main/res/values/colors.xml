@@ -39,6 +39,6 @@
     <color name="dark_text_secondary">#D2D2D2</color>
     <color name="dark_text_tertiary">#B4B4B4</color>
 
-    <!-- Search Highlight -->
-    <color name="searchHighlight">#FFD700</color>
+    <!-- Search Highlight previously FFD700 -->
+    <color name="searchHighlight">#66FFD700</color>
 </resources>
