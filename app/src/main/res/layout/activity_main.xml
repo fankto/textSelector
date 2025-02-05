@@ -45,7 +45,6 @@
         app:backgroundTint="@color/gold_primary"
         app:tint="?attr/colorOnPrimary" />
 
-    <!-- res/layout/activity_main.xml -->
     <LinearLayout
         android:id="@+id/searchNavigation"
         android:layout_width="wrap_content"
@@ -87,7 +86,7 @@
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:layout_gravity="bottom"
-        android:background="#AA000000"
+        android:background="@android:color/transparent"
         android:gravity="center_vertical"
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
@@ -98,9 +97,8 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="@string/pin_active"
-            android:textColor="@android:color/white"
+            android:textColor="@color/gold_primary"
             android:textSize="16sp" />
-
     </LinearLayout>
 
 

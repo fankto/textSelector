@@ -106,11 +106,6 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     init {
-        // Remove or comment out the next line:
-        // highlightColor = android.graphics.Color.TRANSPARENT
-
-        // (Optional) If you want a custom highlight for search only,
-        // you can use your search spans instead of affecting native selection.
         if (text !is Editable) {
             Log.d("PinnedEditText", "Converting text to Editable")
             setText(Editable.Factory.getInstance().newEditable(text))
@@ -176,20 +171,6 @@ class PinnedEditText @JvmOverloads constructor(
     fun getSearchResultsCount(): Int = searchResults.size
 
     fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
-
-    /**
-     * Draws a small "PIN" indicator above the start of the pinned selection.
-     */
-    override fun onDraw(canvas: Canvas) {
-        super.onDraw(canvas)
-        if (pinnedStart != null && pinnedEnd != null) {
-            // Calculate a fixed position (e.g., bottom left with some padding)
-            val leftPadding = compoundPaddingLeft.toFloat()
-            val bottomPadding = (height - compoundPaddingBottom).toFloat()
-            // Offset the text a little inside the view (adjust 16 as needed)
-            canvas.drawText("PIN ACTIVE", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
-        }
-    }
 
     fun updateSearch(query: String) {
         Log.d("PinnedEditText", "updateSearch called with query: '$query'")

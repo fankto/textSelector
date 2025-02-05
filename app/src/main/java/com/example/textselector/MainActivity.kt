@@ -50,10 +50,12 @@ class MainActivity : AppCompatActivity() {
                         dY = v.y - event.rawY
                         return true
                     }
+
                     MotionEvent.ACTION_MOVE -> {
                         v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
                         return true
                     }
+
                     else -> return false
                 }
             }
@@ -66,9 +68,19 @@ class MainActivity : AppCompatActivity() {
 
         binding.pinnedEditText.onSearchCleared = {
             searchView?.setQuery("", false)
-            searchView?.onActionViewCollapsed()
+            searchView?.clearFocus()
+            searchView?.post {
+                searchView?.onActionViewCollapsed()
+            }
             binding.searchNavigation.visibility = View.GONE
-            binding.bottomBanner.visibility = if (binding.pinnedEditText.isPinActive()) View.VISIBLE else View.GONE
+            binding.txtSearchCount.text = ""
+            if (binding.pinnedEditText.isPinActive()) {
+                binding.bottomBanner.visibility = View.VISIBLE
+                binding.tvBannerInfo.text = "PIN ACTIVE"
+            } else {
+                binding.bottomBanner.visibility = View.GONE
+                binding.tvBannerInfo.text = ""
+            }
         }
 
         // If the text area is empty, set some default text
@@ -105,7 +117,8 @@ class MainActivity : AppCompatActivity() {
         val searchItem = menu.findItem(R.id.action_search)
         searchView = searchItem.actionView as? SearchView
         searchView?.apply {
-            isIconified = false
+            // Start in collapsed state (icon only)
+            isIconified = true
             queryHint = getString(R.string.search_term)
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String?): Boolean = true
@@ -116,11 +129,9 @@ class MainActivity : AppCompatActivity() {
                         val resultCount = binding.pinnedEditText.getSearchResultsCount()
                         if (resultCount > 0) {
                             binding.searchNavigation.visibility = View.VISIBLE
-                            binding.bottomBanner.visibility = View.VISIBLE
                             updateSearchNavigation()
                         } else {
                             binding.searchNavigation.visibility = View.GONE
-                            binding.bottomBanner.visibility = if (binding.pinnedEditText.isPinActive()) View.VISIBLE else View.GONE
                         }
                     } catch (e: Exception) {
                         Log.e("MainActivity", "Search error", e)
@@ -128,6 +139,10 @@ class MainActivity : AppCompatActivity() {
                     return true
                 }
             })
+            setOnCloseListener {
+                binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
+                false
+            }
         }
         return true
     }
@@ -145,6 +160,7 @@ class MainActivity : AppCompatActivity() {
                     showSavedSelections()
                     true
                 }
+
                 else -> {
                     Log.d("MainActivity", "Unknown menu item: ${menuItem.itemId}")
                     false
@@ -285,14 +301,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateSearchNavigation() {
         val resultCount = binding.pinnedEditText.getSearchResultsCount()
-        val current = binding.pinnedEditText.getCurrentSearchIndex()
-        val isPinActive = binding.pinnedEditText.isPinActive()
-        val bannerText = if (isPinActive) {
-            if (resultCount > 0) "PIN ACTIVE – $current / $resultCount" else "PIN ACTIVE"
+        if (resultCount > 0) {
+            val current = binding.pinnedEditText.getCurrentSearchIndex()
+            binding.txtSearchCount.text = "$current/$resultCount"
         } else {
-            if (resultCount > 0) "$current / $resultCount" else ""
+            binding.txtSearchCount.text = ""
         }
-        binding.tvBannerInfo.text = bannerText
     }
 
     private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
