@@ -17,6 +17,7 @@ import org.json.JSONObject
 import com.google.android.material.snackbar.Snackbar
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
@@ -78,11 +79,9 @@ class MainActivity : AppCompatActivity() {
         }
 
         binding.pinnedEditText.onSearchCleared = {
-            // Hide search navigation and clear counts
             binding.searchNavigation.visibility = View.GONE
             binding.txtSearchCount.text = ""
 
-            // Update bottom banner based on whether a pin is active.
             if (binding.pinnedEditText.isPinActive()) {
                 binding.bottomBanner.visibility = View.VISIBLE
                 binding.tvBannerInfo.text = "PIN ACTIVE"
@@ -91,10 +90,14 @@ class MainActivity : AppCompatActivity() {
                 binding.tvBannerInfo.text = ""
             }
 
-            // Clear the search query and collapse the search view completely.
+            // Clear query, focus, and hide keyboard
             searchView?.setQuery("", false)
             searchView?.clearFocus()
-            searchView?.onActionViewCollapsed()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(binding.pinnedEditText.windowToken, 0)
+
+            // Collapse the SearchView as if the left-arrow was pressed
+            searchMenuItem?.collapseActionView()
         }
 
         // If the text area is empty, set some default text
@@ -125,11 +128,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private var searchMenuItem: MenuItem? = null
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
-        val searchItem = menu.findItem(R.id.action_search)
-        searchView = searchItem.actionView as? SearchView
+        searchMenuItem = menu.findItem(R.id.action_search)
+        searchView = searchMenuItem?.actionView as? SearchView
         searchView?.apply {
             setIconifiedByDefault(true)
             queryHint = getString(R.string.search_term)
@@ -150,7 +154,7 @@ class MainActivity : AppCompatActivity() {
             })
         }
         // Ensure that when the search view expands it automatically gets focus.
-        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
             override fun onMenuItemActionExpand(item: MenuItem): Boolean {
                 searchView?.requestFocusFromTouch()
                 return true
