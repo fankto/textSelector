@@ -3,6 +3,7 @@ package com.example.textselector
 
 import android.content.Context
 import android.os.Bundle
+import android.util.Log
 import android.view.Menu
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
@@ -13,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import com.google.android.material.snackbar.Snackbar
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.inputmethod.EditorInfo
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
@@ -47,26 +49,34 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_main, menu)
-        // Set up the SearchView.
         val searchItem = menu.findItem(R.id.action_search)
         val searchView = searchItem.actionView as? SearchView
-        searchView?.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                query?.let {
-                    binding.pinnedEditText.highlightSearch(it)
-                    updateSearchNavigation() // update the counter text
-                    binding.searchNavigation.visibility = View.VISIBLE
+
+        searchView?.apply {
+            // Keep the SearchView expanded so that the query stays visible.
+            isIconified = false
+            imeOptions = EditorInfo.IME_ACTION_SEARCH
+
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    // We handle live updates so no need to do extra work here.
+                    return true
                 }
-                return true
-            }
-            override fun onQueryTextChange(newText: String?): Boolean {
-                if (newText.isNullOrEmpty()) {
-                    binding.pinnedEditText.clearHighlights()
-                    binding.searchNavigation.visibility = View.GONE
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    val queryText = newText.orEmpty()
+                    if (queryText.isNotEmpty()) {
+                        binding.pinnedEditText.highlightSearch(queryText)
+                        updateSearchNavigation()  // Update your counter/up/down arrows, etc.
+                        // Also, show your bottom banner (see below)
+                        binding.bottomBanner.visibility = View.VISIBLE
+                    } else {
+                        binding.pinnedEditText.clearHighlights()
+                        binding.bottomBanner.visibility = View.GONE
+                    }
+                    return true
                 }
-                return true
-            }
-        })
+            })
+        }
         return true
     }
 
@@ -77,6 +87,7 @@ class MainActivity : AppCompatActivity() {
                     showSavedSelections()
                     true
                 }
+
                 else -> false
             }
         }
@@ -157,7 +168,8 @@ class MainActivity : AppCompatActivity() {
         try {
             // Inflate the dialog layout containing the RecyclerView.
             val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            val recyclerView =
+                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
             recyclerView.layoutManager = LinearLayoutManager(this)
             val selections = loadSavedSelectionsFromPrefs().sortedByDescending { it.timestamp }
 
@@ -213,8 +225,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateSearchNavigation() {
         val count = binding.pinnedEditText.getSearchResultsCount()
         val current = binding.pinnedEditText.getCurrentSearchIndex()
-        val txtSearchCount = binding.searchNavigation.findViewById<TextView>(R.id.txtSearchCount)
-        txtSearchCount.text = "$current/$count"
+        val bannerText = if (count > 0) {
+            "PIN ACTIVE – $current / $count"
+        } else {
+            "PIN ACTIVE"
+        }
+        binding.tvBannerInfo.text = bannerText
     }
 
     private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
@@ -232,6 +248,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
         val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        // Hide the bottom-sheet buttons so that only the dialog's buttons show.
+        dialogView.findViewById<MaterialButton>(R.id.cancelButton).visibility = View.GONE
+        dialogView.findViewById<MaterialButton>(R.id.saveButton).visibility = View.GONE
+
         val nameInput = dialogView.findViewById<EditText>(R.id.nameInput)
         nameInput.setText(selection.name)
 
@@ -249,6 +269,7 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
 
     private fun showSuccessSnackbar(message: String) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)

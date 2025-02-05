@@ -63,6 +63,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -79,8 +80,8 @@ class SavedSelectionsAdapter(
         val titleText: TextView = view.findViewById(R.id.selectionTitle)
         val timestampText: TextView = view.findViewById(R.id.timestamp)
         val previewText: TextView = view.findViewById(R.id.previewText)
-        val deleteButton: ImageButton = view.findViewById(R.id.deleteButton)
-        val editButton: ImageButton = view.findViewById(R.id.editButton)
+        val deleteButton: MaterialButton = view.findViewById(R.id.deleteButton)
+        val editButton: MaterialButton = view.findViewById(R.id.editButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
@@ -313,7 +314,7 @@ class PinnedEditText @JvmOverloads constructor(
             val leftPadding = compoundPaddingLeft.toFloat()
             val bottomPadding = (height - compoundPaddingBottom).toFloat()
             // Offset the text a little inside the view (adjust 16 as needed)
-            canvas.drawText("PIN", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
+            canvas.drawText("PIN ACTIVE", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
         }
     }
 }
@@ -383,6 +384,7 @@ class MainActivity : AppCompatActivity() {
                 }
                 return true
             }
+
             override fun onQueryTextChange(newText: String?): Boolean {
                 if (newText.isNullOrEmpty()) {
                     binding.pinnedEditText.clearHighlights()
@@ -401,6 +403,7 @@ class MainActivity : AppCompatActivity() {
                     showSavedSelections()
                     true
                 }
+
                 else -> false
             }
         }
@@ -481,7 +484,8 @@ class MainActivity : AppCompatActivity() {
         try {
             // Inflate the dialog layout containing the RecyclerView.
             val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            val recyclerView =
+                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
             recyclerView.layoutManager = LinearLayoutManager(this)
             val selections = loadSavedSelectionsFromPrefs().sortedByDescending { it.timestamp }
 
@@ -556,6 +560,10 @@ class MainActivity : AppCompatActivity() {
 
     private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
         val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        // Hide the bottom-sheet buttons so that only the dialog's buttons show.
+        dialogView.findViewById<MaterialButton>(R.id.cancelButton).visibility = View.GONE
+        dialogView.findViewById<MaterialButton>(R.id.saveButton).visibility = View.GONE
+
         val nameInput = dialogView.findViewById<EditText>(R.id.nameInput)
         nameInput.setText(selection.name)
 
@@ -573,6 +581,7 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
             .show()
     }
+
 
     private fun showSuccessSnackbar(message: String) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)

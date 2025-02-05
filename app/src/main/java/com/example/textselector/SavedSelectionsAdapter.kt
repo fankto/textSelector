@@ -7,6 +7,7 @@ import android.view.ViewGroup
 import android.widget.ImageButton
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -23,8 +24,8 @@ class SavedSelectionsAdapter(
         val titleText: TextView = view.findViewById(R.id.selectionTitle)
         val timestampText: TextView = view.findViewById(R.id.timestamp)
         val previewText: TextView = view.findViewById(R.id.previewText)
-        val deleteButton: ImageButton = view.findViewById(R.id.deleteButton)
-        val editButton: ImageButton = view.findViewById(R.id.editButton)
+        val deleteButton: MaterialButton = view.findViewById(R.id.deleteButton)
+        val editButton: MaterialButton = view.findViewById(R.id.editButton)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {

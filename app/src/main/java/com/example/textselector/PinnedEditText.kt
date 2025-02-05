@@ -7,6 +7,7 @@ import android.text.Spannable
 import android.text.SpannableString
 import android.text.style.BackgroundColorSpan
 import android.util.AttributeSet
+import android.util.Log
 import android.view.GestureDetector
 import android.view.MotionEvent
 import androidx.appcompat.widget.AppCompatEditText
@@ -130,44 +131,65 @@ class PinnedEditText @JvmOverloads constructor(
         return Pair(start, end)
     }
 
-    // --- Search Functionality (with a small change to preserve pinned state) ---
-
-    /**
-     * Highlights all occurrences of [query] in the text by applying a background color span.
-     * Ensure that R.color.searchHighlight is defined in your colors.xml.
-     */
     fun highlightSearch(query: String) {
-        val originalText = text?.toString() ?: return
-        val spannable = SpannableString(originalText)
+        val editable = text ?: return
+        if (editable !is Spannable) return
+
+        // Remove any existing search highlight spans (only remove spans that use our searchHighlight color)
+        val existingSpans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+        for (span in existingSpans) {
+            val color = (span as? BackgroundColorSpan)?.backgroundColor
+            if (color == ContextCompat.getColor(context, R.color.searchHighlight)) {
+                editable.removeSpan(span)
+            }
+        }
+
         if (query.isNotEmpty()) {
-            // Use a case-insensitive search.
+            // Use a case-insensitive literal search (escaping the query)
             val regex = Regex(Pattern.quote(query), RegexOption.IGNORE_CASE)
-            regex.findAll(originalText).forEach { matchResult ->
-                spannable.setSpan(
+            val matches = regex.findAll(editable.toString()).toList()
+            searchResults = matches.map { it.range }
+            currentSearchIndex = 0
+
+            // Apply our highlight span to every match
+            for (match in matches) {
+                editable.setSpan(
                     BackgroundColorSpan(ContextCompat.getColor(context, R.color.searchHighlight)),
-                    matchResult.range.first,
-                    matchResult.range.last + 1,
+                    match.range.first,
+                    match.range.last + 1, // end is exclusive
                     Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
                 )
             }
+            // Select the first match if any
+            if (searchResults.isNotEmpty()) {
+                setSelection(searchResults[0].first, searchResults[0].last + 1)
+            }
+        } else {
+            // If there is no search query, clear the list and reapply any pinned selection.
+            searchResults = emptyList()
+            if (pinnedStart != null && pinnedEnd != null) {
+                setSelection(pinnedStart!!, pinnedEnd!!)
+            }
         }
-        setText(spannable)
-        // Reapply any existing pinned selection (if still valid)
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
+        // Force a redraw so the spans update
+        invalidate()
     }
 
-    /**
-     * Clears any search highlights by resetting the text.
-     */
     fun clearHighlights() {
-        val plainText = text?.toString() ?: ""
-        setText(plainText)
-        // Reapply selection if needed
+        // Get the plain text and remove any spans that use our searchHighlight color
+        val editable = text ?: return
+        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+        for (span in spans) {
+            if ((span as? BackgroundColorSpan)?.backgroundColor == ContextCompat.getColor(context, R.color.searchHighlight)) {
+                editable.removeSpan(span)
+            }
+        }
+        searchResults = emptyList()
+        // Reapply pinned selection if any
         if (pinnedStart != null && pinnedEnd != null) {
             setSelection(pinnedStart!!, pinnedEnd!!)
         }
+        invalidate()
     }
 
     fun nextSearchResult() {
@@ -200,7 +222,7 @@ class PinnedEditText @JvmOverloads constructor(
             val leftPadding = compoundPaddingLeft.toFloat()
             val bottomPadding = (height - compoundPaddingBottom).toFloat()
             // Offset the text a little inside the view (adjust 16 as needed)
-            canvas.drawText("PIN", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
+            canvas.drawText("PIN ACTIVE", leftPadding + 16, bottomPadding - 16, pinIndicatorPaint)
         }
     }
 }

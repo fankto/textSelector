@@ -81,5 +81,27 @@
             android:contentDescription="@string/next_result"/>
     </LinearLayout>
 
+    <LinearLayout
+        android:id="@+id/bottomBanner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:background="#AA000000"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvBannerInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/pin_active"
+            android:textColor="@android:color/white"
+            android:textSize="16sp"/>
+
+    </LinearLayout>
+
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
