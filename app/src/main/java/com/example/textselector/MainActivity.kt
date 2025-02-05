@@ -39,41 +39,50 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "Binding inflated")
         setContentView(binding.root)
 
-        // Make the save FAB draggable.
         binding.saveFab.setOnTouchListener(object : View.OnTouchListener {
             var dX = 0f
             var dY = 0f
+            var downRawX = 0f
+            var downRawY = 0f
+            val CLICK_DRAG_TOLERANCE = 10  // in pixels
             override fun onTouch(v: View, event: MotionEvent): Boolean {
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
                         dX = v.x - event.rawX
                         dY = v.y - event.rawY
                         return true
                     }
-
                     MotionEvent.ACTION_MOVE -> {
                         v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
                         return true
                     }
-
+                    MotionEvent.ACTION_UP -> {
+                        val upRawX = event.rawX
+                        val upRawY = event.rawY
+                        // If the touch moved little, consider it a click.
+                        if (Math.abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
+                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE) {
+                            v.performClick()
+                        }
+                        return true
+                    }
                     else -> return false
                 }
             }
         })
-
 
         binding.pinnedEditText.selectionChangeListener = { start, end ->
             binding.saveFab.visibility = if (end - start > 0) View.VISIBLE else View.GONE
         }
 
         binding.pinnedEditText.onSearchCleared = {
-            searchView?.setQuery("", false)
-            searchView?.clearFocus()
-            searchView?.post {
-                searchView?.onActionViewCollapsed()
-            }
+            // Hide search navigation and clear counts
             binding.searchNavigation.visibility = View.GONE
             binding.txtSearchCount.text = ""
+
+            // Update bottom banner based on whether a pin is active.
             if (binding.pinnedEditText.isPinActive()) {
                 binding.bottomBanner.visibility = View.VISIBLE
                 binding.tvBannerInfo.text = "PIN ACTIVE"
@@ -81,6 +90,11 @@ class MainActivity : AppCompatActivity() {
                 binding.bottomBanner.visibility = View.GONE
                 binding.tvBannerInfo.text = ""
             }
+
+            // Clear the search query and collapse the search view completely.
+            searchView?.setQuery("", false)
+            searchView?.clearFocus()
+            searchView?.onActionViewCollapsed()
         }
 
         // If the text area is empty, set some default text
@@ -117,35 +131,38 @@ class MainActivity : AppCompatActivity() {
         val searchItem = menu.findItem(R.id.action_search)
         searchView = searchItem.actionView as? SearchView
         searchView?.apply {
-            // Start in collapsed state (icon only)
-            isIconified = true
+            setIconifiedByDefault(true)
             queryHint = getString(R.string.search_term)
+            // When the search view is clicked, request focus immediately.
+            setOnSearchClickListener {
+                requestFocus()
+                requestFocusFromTouch()
+            }
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String?): Boolean = true
                 override fun onQueryTextChange(newText: String?): Boolean {
-                    val queryText = newText.orEmpty()
-                    try {
-                        binding.pinnedEditText.updateSearch(queryText)
-                        val resultCount = binding.pinnedEditText.getSearchResultsCount()
-                        if (resultCount > 0) {
-                            binding.searchNavigation.visibility = View.VISIBLE
-                            updateSearchNavigation()
-                        } else {
-                            binding.searchNavigation.visibility = View.GONE
-                        }
-                    } catch (e: Exception) {
-                        Log.e("MainActivity", "Search error", e)
-                    }
+                    binding.pinnedEditText.updateSearch(newText.orEmpty())
+                    val resultCount = binding.pinnedEditText.getSearchResultsCount()
+                    binding.searchNavigation.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+                    if (resultCount > 0) updateSearchNavigation()
                     return true
                 }
             })
-            setOnCloseListener {
-                binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
-                false
-            }
         }
+        // Ensure that when the search view expands it automatically gets focus.
+        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                searchView?.requestFocusFromTouch()
+                return true
+            }
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
+                return true
+            }
+        })
         return true
     }
+
 
     private fun setupToolbar() {
         Log.d("MainActivity", "Setting up toolbar")

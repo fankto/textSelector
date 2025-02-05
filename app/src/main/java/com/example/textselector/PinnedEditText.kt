@@ -49,14 +49,8 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     private fun handleDoubleTap(offset: Int) {
-        // Always clear search UI when double-tapping.
-        if (searchResults.isNotEmpty()) {
-            clearSearchHighlights()
-        } else {
-            onSearchCleared?.invoke()
-        }
-
         val (wordStart, wordEnd) = selectWordAt(offset)
+
         if (pinnedStart == null || pinnedEnd == null) {
             pinnedStart = wordStart
             pinnedEnd = wordEnd
@@ -73,6 +67,12 @@ class PinnedEditText @JvmOverloads constructor(
             val newStart = min(pinnedStart!!, pinnedEnd!!)
             val newEnd = max(pinnedStart!!, pinnedEnd!!)
             setSelection(newStart, newEnd)
+        }
+
+        if (searchResults.isNotEmpty()) {
+            clearSearchHighlights()
+        } else {
+            onSearchCleared?.invoke()
         }
         invalidate()
     }
