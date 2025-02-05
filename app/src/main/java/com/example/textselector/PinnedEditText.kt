@@ -39,6 +39,72 @@ class PinnedEditText @JvmOverloads constructor(
     private var searchResults: List<IntRange> = emptyList()
     private var currentSearchIndex: Int = 0
 
+    var selectionChangeListener: ((Int, Int) -> Unit)? = null
+    var onSearchCleared: (() -> Unit)? = null
+    fun isPinActive(): Boolean = pinnedStart != null && pinnedEnd != null
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        selectionChangeListener?.invoke(selStart, selEnd)
+    }
+
+    private fun handleDoubleTap(offset: Int) {
+        // Always clear search UI when double-tapping.
+        if (searchResults.isNotEmpty()) {
+            clearSearchHighlights()
+        } else {
+            onSearchCleared?.invoke()
+        }
+
+        val (wordStart, wordEnd) = selectWordAt(offset)
+        if (pinnedStart == null || pinnedEnd == null) {
+            pinnedStart = wordStart
+            pinnedEnd = wordEnd
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        } else {
+            val tapMid = (wordStart + wordEnd) / 2
+            val distanceToStart = abs(tapMid - pinnedStart!!)
+            val distanceToEnd = abs(tapMid - pinnedEnd!!)
+            if (distanceToStart <= distanceToEnd) {
+                pinnedStart = wordStart
+            } else {
+                pinnedEnd = wordEnd
+            }
+            val newStart = min(pinnedStart!!, pinnedEnd!!)
+            val newEnd = max(pinnedStart!!, pinnedEnd!!)
+            setSelection(newStart, newEnd)
+        }
+        invalidate()
+    }
+
+    fun clearSelectionPins() {
+        pinnedStart = null
+        pinnedEnd = null
+        val pos = selectionStart
+        setSelection(pos, pos)
+        invalidate()
+        onSearchCleared?.invoke()
+    }
+
+    fun clearSearchHighlights(invokeCallback: Boolean = true) {
+        val editable = text ?: return
+        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+        spans.forEach { span ->
+            if (span.backgroundColor == searchHighlightColor) {
+                editable.removeSpan(span)
+            }
+        }
+        searchResults = emptyList()
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+        if (invokeCallback) {
+            onSearchCleared?.invoke()
+        }
+    }
+
     init {
         // Remove or comment out the next line:
         // highlightColor = android.graphics.Color.TRANSPARENT
@@ -91,52 +157,6 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     /**
-     * On a double tap:
-     * - If no selection exists, select the tapped word.
-     * - Otherwise, update the boundary (start or end) that is closer to the tap.
-     */
-    private fun handleDoubleTap(offset: Int) {
-        // If a search is active, clear its spans so that we form a new pinned selection.
-        if (searchResults.isNotEmpty()) {
-            clearSearchHighlights()
-        }
-
-        val (wordStart, wordEnd) = selectWordAt(offset)
-        if (pinnedStart == null || pinnedEnd == null) {
-            // First double tap: pin the word.
-            pinnedStart = wordStart
-            pinnedEnd = wordEnd
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        } else {
-            // Subsequent double tap: update the boundary that is closer.
-            val tapMid = (wordStart + wordEnd) / 2
-            val distanceToStart = abs(tapMid - pinnedStart!!)
-            val distanceToEnd = abs(tapMid - pinnedEnd!!)
-            if (distanceToStart <= distanceToEnd) {
-                pinnedStart = wordStart
-            } else {
-                pinnedEnd = wordEnd
-            }
-            val newStart = min(pinnedStart!!, pinnedEnd!!)
-            val newEnd = max(pinnedStart!!, pinnedEnd!!)
-            setSelection(newStart, newEnd)
-        }
-        invalidate() // update the view (for your PIN indicator, etc.)
-    }
-
-    /**
-     * Clears the stored selection boundaries and resets the native selection.
-     */
-    fun clearSelectionPins() {
-        pinnedStart = null
-        pinnedEnd = null
-        // Reset native selection by moving the cursor.
-        val pos = selectionStart
-        setSelection(pos, pos)
-        invalidate() // remove any drawn indicators
-    }
-
-    /**
      * Returns the full boundaries (start, end) of the word at the given text offset.
      */
     private fun selectWordAt(offset: Int): Pair<Int, Int> {
@@ -181,7 +201,7 @@ class PinnedEditText @JvmOverloads constructor(
         }
         Log.d("PinnedEditText", "Current text content: '${editable.toString()}'")
 
-        clearSearchHighlights()
+        clearSearchHighlights(invokeCallback = false)
         Log.d("PinnedEditText", "Cleared previous highlights")
 
         if (query.isEmpty()) {
@@ -244,21 +264,4 @@ class PinnedEditText @JvmOverloads constructor(
             setSelection(range.first, range.last + 1)
         }
     }
-
-    fun clearSearchHighlights() {
-        val editable = text ?: return
-        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
-        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
-        spans.forEach { span ->
-            if (span.backgroundColor == searchHighlightColor) {
-                editable.removeSpan(span)
-            }
-        }
-        searchResults = emptyList()
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
-        invalidate()
-    }
-
 }
