@@ -235,6 +235,7 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
+            bringPointIntoView(range.first)
         }
     }
 
@@ -243,6 +244,8 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
+            bringPointIntoView(range.first)
         }
     }
+
 }

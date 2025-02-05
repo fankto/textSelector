@@ -39,7 +39,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_marginBottom="70dp"
+        android:layout_marginRight="16dp"
         android:contentDescription="@string/save"
         android:src="@drawable/ic_save"
         app:backgroundTint="@color/gold_primary"
@@ -53,12 +54,16 @@
         android:background="@drawable/search_nav_background"
         android:orientation="horizontal"
         android:padding="8dp"
+        android:elevation="10dp"
         android:visibility="gone">
 
         <ImageButton
             android:id="@+id/btnPrev"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:minWidth="48dp"
+            android:padding="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/previous_result"
             android:src="@drawable/ic_arrow_up" />
@@ -76,6 +81,9 @@
             android:id="@+id/btnNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:minHeight="48dp"
+            android:minWidth="48dp"
+            android:padding="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/next_result"
             android:src="@drawable/ic_arrow_down" />
