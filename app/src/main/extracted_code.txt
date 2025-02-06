@@ -251,22 +251,38 @@ class PinnedEditText @JvmOverloads constructor(
 
     private fun handleDoubleTap(offset: Int) {
         val (wordStart, wordEnd) = selectWordAt(offset)
+        Logger.d(
+            "PinnedEditText",
+            "handleDoubleTap: tapped offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd"
+        )
 
         if (pinnedStart == null || pinnedEnd == null) {
             pinnedStart = wordStart
             pinnedEnd = wordEnd
+            Logger.d(
+                "PinnedEditText",
+                "Initial pin set: pinnedStart=$pinnedStart, pinnedEnd=$pinnedEnd"
+            )
             setSelection(pinnedStart!!, pinnedEnd!!)
         } else {
             val tapMid = (wordStart + wordEnd) / 2
             val distanceToStart = abs(tapMid - pinnedStart!!)
             val distanceToEnd = abs(tapMid - pinnedEnd!!)
+            Logger.d(
+                "PinnedEditText",
+                "handleDoubleTap: tapMid=$tapMid, distanceToStart=$distanceToStart, distanceToEnd=$distanceToEnd"
+            )
+
             if (distanceToStart <= distanceToEnd) {
                 pinnedStart = wordStart
+                Logger.d("PinnedEditText", "Updated pinnedStart to $pinnedStart")
             } else {
                 pinnedEnd = wordEnd
+                Logger.d("PinnedEditText", "Updated pinnedEnd to $pinnedEnd")
             }
             val newStart = min(pinnedStart!!, pinnedEnd!!)
             val newEnd = max(pinnedStart!!, pinnedEnd!!)
+            Logger.d("PinnedEditText", "Final selection boundaries: $newStart to $newEnd")
             setSelection(newStart, newEnd)
         }
 
@@ -277,6 +293,7 @@ class PinnedEditText @JvmOverloads constructor(
         }
         invalidate()
     }
+
 
     fun clearSelectionPins() {
         pinnedStart = null
@@ -310,7 +327,19 @@ class PinnedEditText @JvmOverloads constructor(
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                val offset = getOffsetForPosition(e.x, e.y)
+                // Get view's screen location.
+                val location = IntArray(2)
+                getLocationOnScreen(location)
+                val localX = e.rawX - location[0]
+                val localY = e.rawY - location[1]
+                // Compute the offset from the local coordinates.
+                val offset = getOffsetForPosition(localX, localY)
+                Logger.d(
+                    "PinnedEditText",
+                    "onDoubleTap: rawX=${e.rawX}, rawY=${e.rawY}, " +
+                            "viewLocation=(${location[0]},${location[1]}), localX=$localX, localY=$localY, " +
+                            "scrollX=$scrollX, scrollY=$scrollY, computed offset=$offset"
+                )
                 handleDoubleTap(offset)
                 return true
             }
@@ -379,7 +408,10 @@ class PinnedEditText @JvmOverloads constructor(
      */
     private fun selectWordAt(offset: Int): Pair<Int, Int> {
         val textStr = text?.toString() ?: ""
-        if (textStr.isEmpty()) return Pair(0, 0)
+        if (textStr.isEmpty()) {
+            Logger.d("PinnedEditText", "selectWordAt: empty text, returning (0,0)")
+            return Pair(0, 0)
+        }
         var start = offset
         var end = offset
         while (start > 0 && !textStr[start - 1].isWhitespace()) {
@@ -388,8 +420,13 @@ class PinnedEditText @JvmOverloads constructor(
         while (end < textStr.length && !textStr[end].isWhitespace()) {
             end++
         }
+        Logger.d(
+            "PinnedEditText",
+            "selectWordAt: offset=$offset, determined word boundaries=($start, $end)"
+        )
         return Pair(start, end)
     }
+
 
     fun getSearchResultsCount(): Int = searchResults.size
 
@@ -1630,8 +1667,7 @@ class MainActivity : AppCompatActivity() {
 
 # res/layout/activity_main.xml
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -1666,17 +1702,22 @@ class MainActivity : AppCompatActivity() {
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- The main text area with extract mode disabled -->
-    <com.example.textselector.PinnedEditText
-        android:id="@+id/pinnedEditText"
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="top"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:inputType="textMultiLine"
-        android:hint="@string/hint_paste_text"
-        android:imeOptions="flagNoExtractUi"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <com.example.textselector.PinnedEditText
+            android:id="@+id/pinnedEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="@string/hint_paste_text"
+            android:inputType="textMultiLine"
+            android:padding="16dp"
+            android:scrollbars="vertical" />
+    </androidx.core.widget.NestedScrollView>
 
     <com.example.textselector.CustomFloatingActionButton
         android:id="@+id/saveFab"
@@ -1743,6 +1784,7 @@ class MainActivity : AppCompatActivity() {
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
         android:visibility="gone">
+
         <TextView
             android:id="@+id/tvBannerInfo"
             android:layout_width="wrap_content"

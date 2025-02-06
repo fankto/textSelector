@@ -52,26 +52,50 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     private fun handleDoubleTap(offset: Int) {
+        // Determine the tapped word’s boundaries.
         val (wordStart, wordEnd) = selectWordAt(offset)
+        Logger.d("PinnedEditText", "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd")
+
+        // Save the current scroll position so we can restore it.
+        val currentScrollY = scrollY
 
         if (pinnedStart == null || pinnedEnd == null) {
+            // First double-tap: set both pins to exactly the tapped word.
             pinnedStart = wordStart
             pinnedEnd = wordEnd
             setSelection(pinnedStart!!, pinnedEnd!!)
         } else {
-            val tapMid = (wordStart + wordEnd) / 2
-            val distanceToStart = abs(tapMid - pinnedStart!!)
-            val distanceToEnd = abs(tapMid - pinnedEnd!!)
-            if (distanceToStart <= distanceToEnd) {
+            // Decide which pin to update:
+            if (wordEnd <= pinnedStart!!) {
+                // The new word is entirely before the current selection.
                 pinnedStart = wordStart
-            } else {
+            } else if (wordStart >= pinnedEnd!!) {
+                // The new word is entirely after the current selection.
                 pinnedEnd = wordEnd
+            } else {
+                // The new word overlaps the current selection.
+                // Compare the difference between new word's start and current start pin,
+                // and new word's end and current end pin.
+                val diffStart = abs(wordStart - pinnedStart!!)
+                val diffEnd = abs(wordEnd - pinnedEnd!!)
+                if (diffStart <= diffEnd) {
+                    // Update the start pin to the new word’s start.
+                    pinnedStart = wordStart
+                } else {
+                    // Update the end pin to the new word’s end.
+                    pinnedEnd = wordEnd
+                }
             }
+            // Always set selection from the lower to the higher index.
             val newStart = min(pinnedStart!!, pinnedEnd!!)
             val newEnd = max(pinnedStart!!, pinnedEnd!!)
             setSelection(newStart, newEnd)
         }
 
+        // Restore the scroll position so the viewport remains where it was.
+        post { scrollTo(scrollX, currentScrollY) }
+
+        // Clear search highlights if any.
         if (searchResults.isNotEmpty()) {
             clearSearchHighlights()
         } else {
@@ -79,6 +103,9 @@ class PinnedEditText @JvmOverloads constructor(
         }
         invalidate()
     }
+
+
+
 
     fun clearSelectionPins() {
         pinnedStart = null
@@ -112,7 +139,13 @@ class PinnedEditText @JvmOverloads constructor(
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                val offset = getOffsetForPosition(e.x, e.y)
+                // Use the layout directly to compute the tapped offset.
+                val layout = layout ?: return false
+                // Adjust e.y from the visible area to the full text layout coordinate:
+                val adjustedY = e.y + scrollY - totalPaddingTop
+                val line = layout.getLineForVertical(adjustedY.toInt())
+                val offset = layout.getOffsetForHorizontal(line, e.x)
+
                 handleDoubleTap(offset)
                 return true
             }
@@ -263,6 +296,12 @@ class PinnedEditText @JvmOverloads constructor(
             bringPointIntoView(range.first)
         }
     }
+
+    override fun bringPointIntoView(offset: Int): Boolean {
+        // Disable automatic scrolling when selection changes.
+        return false
+    }
+
 
     fun previousSearchResult() {
         if (searchResults.isNotEmpty()) {
