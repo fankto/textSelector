@@ -515,6 +515,15 @@ class MainActivity : AppCompatActivity() {
     private var searchView: SearchView? = null
     private var searchMenuItem: MenuItem? = null
     private lateinit var db: TextSelectorDatabase
+    private var wasSearchExpanded = false
+    private var savedSearchQuery: String? = null
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
+        outState.putString("savedSearchQuery", searchView?.query?.toString())
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Load theme from shared preferences before super.onCreate:
@@ -529,6 +538,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (savedInstanceState != null) {
+            wasSearchExpanded = savedInstanceState.getBoolean("wasSearchExpanded", false)
+            savedSearchQuery = savedInstanceState.getString("savedSearchQuery")
+        }
 
         // Initialize the Room database.
         db = TextSelectorDatabase.getDatabase(this)
@@ -548,19 +562,23 @@ class MainActivity : AppCompatActivity() {
                         dY = v.y - event.rawY
                         return true
                     }
+
                     MotionEvent.ACTION_MOVE -> {
                         v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
                         return true
                     }
+
                     MotionEvent.ACTION_UP -> {
                         val upRawX = event.rawX
                         val upRawY = event.rawY
                         if (Math.abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
-                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE) {
+                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
+                        ) {
                             v.performClick()
                         }
                         return true
                     }
+
                     else -> return false
                 }
             }
@@ -623,17 +641,25 @@ class MainActivity : AppCompatActivity() {
                 override fun onQueryTextChange(newText: String?): Boolean {
                     binding.pinnedEditText.updateSearch(newText.orEmpty())
                     val resultCount = binding.pinnedEditText.getSearchResultsCount()
-                    binding.searchNavigation.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+                    binding.searchNavigation.visibility =
+                        if (resultCount > 0) View.VISIBLE else View.GONE
                     if (resultCount > 0) updateSearchNavigation()
                     return true
                 }
             })
         }
+
+        if (wasSearchExpanded) {
+            searchMenuItem?.expandActionView()
+            searchView?.setQuery(savedSearchQuery, false)
+        }
+
         searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
             override fun onMenuItemActionExpand(item: MenuItem): Boolean {
                 searchView?.requestFocusFromTouch()
                 return true
             }
+
             override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
                 binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
                 return true
@@ -648,10 +674,12 @@ class MainActivity : AppCompatActivity() {
                 showSavedSelections()
                 return true
             }
+
             R.id.action_toggle_theme -> {
                 toggleTheme()
                 return true
             }
+
             else -> return super.onOptionsItemSelected(item)
         }
     }
@@ -675,7 +703,8 @@ class MainActivity : AppCompatActivity() {
     private fun toggleTheme() {
         val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
         val isDarkMode = prefs.getBoolean("isDarkMode", false)
-        val newMode = if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+        val newMode =
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
         prefs.edit().putBoolean("isDarkMode", !isDarkMode).apply()
         AppCompatDelegate.setDefaultNightMode(newMode)
         // Recreate the activity so the theme change takes effect immediately.
@@ -684,16 +713,32 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
+        val toolbarTitle = binding.toolbar.findViewById<TextView>(R.id.toolbarTitle)
+        toolbarTitle.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("About")
+                .setMessage(
+                    "Tobias Fankhauser\n" +
+                            "GitHub: https://github.com/TobiFank\n" +
+                            "LinkedIn: www.linkedin.com/in/tobias-fankhauser\n" +
+                            "Buy me a coffee: buymeacoffee.com/TobiFank"
+                )
+                .setPositiveButton("OK", null)
+                .show()
+        }
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_library -> {
                     showSavedSelections()
                     true
                 }
+
                 R.id.action_toggle_theme -> {
                     toggleTheme()
                     true
                 }
+
                 else -> false
             }
         }
@@ -771,7 +816,8 @@ class MainActivity : AppCompatActivity() {
                 db.savedSelectionDao().getAll()
             }
             val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            val recyclerView =
+                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
             recyclerView.layoutManager = LinearLayoutManager(this@MainActivity)
             val dialog = MaterialAlertDialogBuilder(this@MainActivity)
                 .setView(dialogView)
@@ -1323,7 +1369,8 @@ class MainActivity : AppCompatActivity() {
 <androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
 
     <com.google.android.material.appbar.AppBarLayout
         android:layout_width="match_parent"
@@ -1337,9 +1384,18 @@ class MainActivity : AppCompatActivity() {
             android:layout_height="?attr/actionBarSize"
             android:layout_marginTop="15dp"
             android:background="@android:color/transparent"
-            app:menu="@menu/menu_main"
-            app:title="@string/app_name"
-            app:titleTextAppearance="@style/TextAppearance.MetallicGold.Title" />
+            app:menu="@menu/menu_main">
+
+            <TextView
+                android:id="@+id/toolbarTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center"
+                android:clickable="true"
+                android:focusable="true"
+                android:text="@string/app_name"
+                android:textAppearance="@style/TextAppearance.MetallicGold.Title" />
+        </com.google.android.material.appbar.MaterialToolbar>
 
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -1360,8 +1416,8 @@ class MainActivity : AppCompatActivity() {
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_marginBottom="70dp"
         android:layout_marginRight="16dp"
+        android:layout_marginBottom="70dp"
         android:contentDescription="@string/save"
         android:src="@drawable/ic_save"
         app:backgroundTint="@color/gold_primary"
@@ -1373,20 +1429,20 @@ class MainActivity : AppCompatActivity() {
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:background="@drawable/search_nav_background"
+        android:elevation="10dp"
         android:orientation="horizontal"
         android:padding="8dp"
-        android:elevation="10dp"
         android:visibility="gone">
 
         <ImageButton
             android:id="@+id/btnPrev"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:minWidth="48dp"
-            android:padding="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/previous_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
             android:src="@drawable/ic_arrow_up" />
 
         <TextView
@@ -1402,11 +1458,11 @@ class MainActivity : AppCompatActivity() {
             android:id="@+id/btnNext"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:minHeight="48dp"
-            android:minWidth="48dp"
-            android:padding="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/next_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
             android:src="@drawable/ic_arrow_down" />
     </LinearLayout>
 

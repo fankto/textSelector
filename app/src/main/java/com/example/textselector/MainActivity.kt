@@ -2,6 +2,7 @@ package com.example.textselector
 
 import android.content.Context
 import android.os.Bundle
+import android.text.Html
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -81,19 +82,23 @@ class MainActivity : AppCompatActivity() {
                         dY = v.y - event.rawY
                         return true
                     }
+
                     MotionEvent.ACTION_MOVE -> {
                         v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
                         return true
                     }
+
                     MotionEvent.ACTION_UP -> {
                         val upRawX = event.rawX
                         val upRawY = event.rawY
                         if (Math.abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
-                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE) {
+                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
+                        ) {
                             v.performClick()
                         }
                         return true
                     }
+
                     else -> return false
                 }
             }
@@ -156,7 +161,8 @@ class MainActivity : AppCompatActivity() {
                 override fun onQueryTextChange(newText: String?): Boolean {
                     binding.pinnedEditText.updateSearch(newText.orEmpty())
                     val resultCount = binding.pinnedEditText.getSearchResultsCount()
-                    binding.searchNavigation.visibility = if (resultCount > 0) View.VISIBLE else View.GONE
+                    binding.searchNavigation.visibility =
+                        if (resultCount > 0) View.VISIBLE else View.GONE
                     if (resultCount > 0) updateSearchNavigation()
                     return true
                 }
@@ -173,6 +179,7 @@ class MainActivity : AppCompatActivity() {
                 searchView?.requestFocusFromTouch()
                 return true
             }
+
             override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
                 binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
                 return true
@@ -187,10 +194,12 @@ class MainActivity : AppCompatActivity() {
                 showSavedSelections()
                 return true
             }
+
             R.id.action_toggle_theme -> {
                 toggleTheme()
                 return true
             }
+
             else -> return super.onOptionsItemSelected(item)
         }
     }
@@ -214,7 +223,8 @@ class MainActivity : AppCompatActivity() {
     private fun toggleTheme() {
         val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
         val isDarkMode = prefs.getBoolean("isDarkMode", false)
-        val newMode = if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+        val newMode =
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
         prefs.edit().putBoolean("isDarkMode", !isDarkMode).apply()
         AppCompatDelegate.setDefaultNightMode(newMode)
         // Recreate the activity so the theme change takes effect immediately.
@@ -223,16 +233,43 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        val toolbarTitle = binding.toolbar.findViewById<TextView>(R.id.toolbarTitle)
+
+        val aboutMessage = """
+        <div style="font-family: 'Segoe UI', Roboto, -apple-system, sans-serif; max-width: 600px; margin: 2em auto; padding: 2em; background: #ffffff; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h1 style="color: #666666; margin: 0 0 1em 0; font-weight: normal;">Tobias Fankhauser</h1>
+            
+            <div style="display: flex; flex-direction: column; gap: 1em;">
+                <a href="https://github.com/TobiFank" style="color: #f0a500; text-decoration: none;">GitHub</a>
+                <a href="https://www.linkedin.com/in/tobias-fankhauser" style="color: #f0a500; text-decoration: none;">LinkedIn</a>
+                <a href="https://buymeacoffee.com/TobiFank" style="color: #f0a500; text-decoration: none;">Buy me a coffee</a>
+            </div>
+    
+            <p style="color: #666666; margin-top: 2em;">Thanks for visiting! Let's connect and create something amazing together.</p>
+        </div>
+        """.trimIndent()
+
+        toolbarTitle.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("About")
+                .setMessage(Html.fromHtml(aboutMessage, Html.FROM_HTML_MODE_LEGACY))
+                .setPositiveButton("OK", null)
+                .show()
+        }
+
         binding.toolbar.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.action_library -> {
                     showSavedSelections()
                     true
                 }
+
                 R.id.action_toggle_theme -> {
                     toggleTheme()
                     true
                 }
+
                 else -> false
             }
         }
@@ -310,7 +347,8 @@ class MainActivity : AppCompatActivity() {
                 db.savedSelectionDao().getAll()
             }
             val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-            val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            val recyclerView =
+                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
             recyclerView.layoutManager = LinearLayoutManager(this@MainActivity)
             val dialog = MaterialAlertDialogBuilder(this@MainActivity)
                 .setView(dialogView)
