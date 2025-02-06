@@ -55,6 +55,8 @@ class PinnedEditText @JvmOverloads constructor(
     private var savedScrollY: Int = 0
     private var userScrolling = false
 
+    var onPinChanged: (() -> Unit)? = null
+
     private fun handleDoubleTap(offset: Int) {
         // Determine the tapped word’s boundaries.
         val (wordStart, wordEnd) = selectWordAt(offset)
@@ -97,7 +99,9 @@ class PinnedEditText @JvmOverloads constructor(
             val newStart = min(pinnedStart!!, pinnedEnd!!)
             val newEnd = max(pinnedStart!!, pinnedEnd!!)
             setSelection(newStart, newEnd)
+
         }
+        onPinChanged?.invoke()
 
         savedScrollY = scrollY
         // Cancel any previous restoration runnable
@@ -119,6 +123,7 @@ class PinnedEditText @JvmOverloads constructor(
         setSelection(pos, pos)
         invalidate()
         onSearchCleared?.invoke()
+        onPinChanged?.invoke()
     }
 
     fun clearSearchHighlights(invokeCallback: Boolean = true) {
@@ -190,9 +195,23 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTapTime < tripleTapThreshold) {
+                tapCount++
+            } else {
+                tapCount = 1
+            }
+            lastTapTime = currentTime
+
+            if (tapCount == 3) {
+                clearSelectionPins()  // triple tap action
+                tapCount = 0  // reset counter
+            }
+        }
+
         when (event.action) {
             MotionEvent.ACTION_MOVE -> {
-                // The user is scrolling manually; cancel the scheduled restoration
                 userScrolling = true
                 restoreScrollRunnable?.let { removeCallbacks(it) }
             }
@@ -200,10 +219,10 @@ class PinnedEditText @JvmOverloads constructor(
                 userScrolling = false
             }
         }
-        // Let the gesture detector and default handling process the event
         gestureDetector.onTouchEvent(event)
         return super.onTouchEvent(event)
     }
+
 
 
     /**

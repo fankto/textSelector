@@ -145,6 +145,8 @@ class MainActivity : AppCompatActivity() {
             binding.pinnedEditText.setText("")
         }
 
+        binding.pinnedEditText.onPinChanged = { updatePinBanner() }
+
         setupToolbar()
         setupTextArea()
         setupSaveButton()

@@ -1758,7 +1758,7 @@ class MainActivity : AppCompatActivity() {
         <com.example.textselector.PinnedEditText
             android:id="@+id/pinnedEditText"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:gravity="top"
             android:hint="@string/hint_paste_text"
             android:imeOptions="actionSearch|flagNoExtractUi"
