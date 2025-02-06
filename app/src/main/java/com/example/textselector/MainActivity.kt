@@ -474,13 +474,18 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Delete Selection")
             .setMessage("Are you sure you want to delete '${selection.name}'?")
             .setPositiveButton("Delete") { _, _ ->
-                deleteSelection(selection)
-                onDeleted()
-                showSuccessSnackbar("Selection deleted")
+                lifecycleScope.launch {
+                    withContext(Dispatchers.IO) {
+                        db.savedSelectionDao().delete(selection)
+                    }
+                    onDeleted()  // Now the deletion is complete
+                    showSuccessSnackbar("Selection deleted")
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
+
 
     private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
         val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
@@ -492,16 +497,22 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Edit Selection")
             .setView(dialogView)
             .setPositiveButton("Save") { _, _ ->
-                val updatedSelection = selection.copy(
-                    name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: selection.name
-                )
-                updateSelection(updatedSelection)
-                onEdited()
-                showSuccessSnackbar("Selection updated")
+                lifecycleScope.launch {
+                    val updatedSelection = selection.copy(
+                        name = nameInput.text.toString().takeIf { it.isNotBlank() }
+                            ?: selection.name
+                    )
+                    withContext(Dispatchers.IO) {
+                        db.savedSelectionDao().update(updatedSelection)
+                    }
+                    onEdited()  // Now the update is complete
+                    showSuccessSnackbar("Selection updated")
+                }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
+
 
     private fun showSuccessSnackbar(message: String) {
         Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)
