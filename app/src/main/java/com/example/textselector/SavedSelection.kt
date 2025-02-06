@@ -1,8 +1,12 @@
 // app/src/main/java/com/example/textselector/SavedSelection.kt
 package com.example.textselector
 
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "saved_selection")
 data class SavedSelection(
-    val id: Long = System.currentTimeMillis(), // Use timestamp as ID
+    @PrimaryKey val id: Long = System.currentTimeMillis(), // use timestamp as unique id
     val name: String,
     val text: String,
     val timestamp: Long = System.currentTimeMillis()

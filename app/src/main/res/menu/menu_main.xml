@@ -12,4 +12,9 @@
         android:icon="@drawable/ic_library"
         android:title="@string/library"
         app:showAsAction="always" />
+    <item
+        android:id="@+id/action_toggle_theme"
+        android:icon="@drawable/ic_toggle_theme"
+        android:title="@string/toggle_theme"
+        app:showAsAction="ifRoom" />
 </menu>

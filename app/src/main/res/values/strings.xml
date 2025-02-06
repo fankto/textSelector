@@ -16,4 +16,5 @@
     <string name="previous_result">Previous result</string>
     <string name="next_result">Next result</string>
     <string name="pin_active">PIN ACTIVE</string>
+    <string name="toggle_theme">Toggle Theme</string>
 </resources>
