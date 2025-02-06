@@ -6,21 +6,29 @@
     android:layout_height="match_parent"
     android:fitsSystemWindows="true">
 
+    <!-- AppBarLayout with proper inset handling -->
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@android:color/transparent"
+        android:fitsSystemWindows="true"
         app:elevation="0dp">
 
+        <!-- Toolbar without an explicit theme, with explicit tint attributes for title and navigation icons -->
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:layout_marginTop="15dp"
             android:background="@android:color/transparent"
+            android:fitsSystemWindows="true"
+            app:titleTextColor="@color/gold_primary"
+            app:navigationIconTint="@color/gold_primary"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
             app:menu="@menu/menu_main"
             app:title="">
-
+            <!-- Toolbar title using the same TextAppearance as portrait -->
             <TextView
                 android:id="@+id/toolbarTitle"
                 android:layout_width="wrap_content"
@@ -31,22 +39,22 @@
                 android:text="@string/app_name"
                 android:textAppearance="@style/TextAppearance.MetallicGold.Title" />
         </com.google.android.material.appbar.MaterialToolbar>
-
     </com.google.android.material.appbar.AppBarLayout>
 
-    <!-- The main text area with extract mode disabled -->
+    <!-- Main text area -->
     <com.example.textselector.PinnedEditText
         android:id="@+id/pinnedEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"
         android:gravity="top"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:inputType="textMultiLine"
         android:hint="@string/hint_paste_text"
         android:imeOptions="flagNoExtractUi"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:inputType="textMultiLine"
+        android:padding="16dp"
+        android:textSize="16sp" />
 
+    <!-- Floating Action Button -->
     <com.example.textselector.CustomFloatingActionButton
         android:id="@+id/saveFab"
         android:layout_width="wrap_content"
@@ -59,6 +67,7 @@
         app:backgroundTint="@color/gold_primary"
         app:tint="?attr/colorOnPrimary" />
 
+    <!-- Search navigation controls -->
     <LinearLayout
         android:id="@+id/searchNavigation"
         android:layout_width="wrap_content"
@@ -69,7 +78,6 @@
         android:orientation="horizontal"
         android:padding="8dp"
         android:visibility="gone">
-
         <ImageButton
             android:id="@+id/btnPrev"
             android:layout_width="wrap_content"
@@ -80,7 +88,6 @@
             android:minHeight="48dp"
             android:padding="8dp"
             android:src="@drawable/ic_arrow_up" />
-
         <TextView
             android:id="@+id/txtSearchCount"
             android:layout_width="wrap_content"
@@ -89,7 +96,6 @@
             android:paddingEnd="8dp"
             android:text="@string/empty_counter"
             android:textColor="@color/light_text_primary" />
-
         <ImageButton
             android:id="@+id/btnNext"
             android:layout_width="wrap_content"
@@ -102,6 +108,7 @@
             android:src="@drawable/ic_arrow_down" />
     </LinearLayout>
 
+    <!-- Bottom banner -->
     <LinearLayout
         android:id="@+id/bottomBanner"
         android:layout_width="match_parent"

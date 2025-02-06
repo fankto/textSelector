@@ -1,6 +1,7 @@
 package com.example.textselector
 
 import android.content.Context
+import android.content.res.Configuration
 import android.os.Bundle
 import android.text.Html
 import android.util.Log
@@ -29,6 +30,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
@@ -38,6 +40,11 @@ class MainActivity : AppCompatActivity() {
     private lateinit var db: TextSelectorDatabase
     private var wasSearchExpanded = false
     private var savedSearchQuery: String? = null
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // The system loads the correct layout automatically.
+    }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
@@ -336,8 +343,16 @@ class MainActivity : AppCompatActivity() {
             showSuccessSnackbar("Selection saved")
         }
         cancelButton.setOnClickListener { bottomSheetDialog.dismiss() }
+
         bottomSheetDialog.show()
+
+        // Force the bottom sheet to expand fully
+        val bottomSheet = bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+        bottomSheet?.let {
+            BottomSheetBehavior.from(it).state = BottomSheetBehavior.STATE_EXPANDED
+        }
     }
+
 
     private fun showSavedSelections() {
         lifecycleScope.launch {
