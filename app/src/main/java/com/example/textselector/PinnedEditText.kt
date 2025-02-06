@@ -109,7 +109,7 @@ class PinnedEditText @JvmOverloads constructor(
 
     init {
         if (text !is Editable) {
-            Log.d("PinnedEditText", "Converting text to Editable")
+            Logger.d("PinnedEditText", "Converting text to Editable")
             setText(Editable.Factory.getInstance().newEditable(text))
         }
     }
@@ -175,36 +175,36 @@ class PinnedEditText @JvmOverloads constructor(
     fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
 
     fun updateSearch(query: String) {
-        Log.d("PinnedEditText", "updateSearch called with query: '$query'")
+        Logger.d("PinnedEditText", "updateSearch called with query: '$query'")
 
         val editable = editableText
         if (editable == null) {
-            Log.e("PinnedEditText", "Text is not editable!")
+            Logger.e("PinnedEditText", "Text is not editable!")
             return
         }
-        Log.d("PinnedEditText", "Current text content: '${editable.toString()}'")
+        Logger.d("PinnedEditText", "Current text content: '${editable.toString()}'")
 
         clearSearchHighlights(invokeCallback = false)
-        Log.d("PinnedEditText", "Cleared previous highlights")
+        Logger.d("PinnedEditText", "Cleared previous highlights")
 
         if (query.isEmpty()) {
-            Log.d("PinnedEditText", "Empty query, returning")
+            Logger.d("PinnedEditText", "Empty query, returning")
             return
         }
 
         val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
-        Log.d("PinnedEditText", "Search highlight color: $searchHighlightColor")
+        Logger.d("PinnedEditText", "Search highlight color: $searchHighlightColor")
 
         try {
             val regex = Regex(Regex.escape(query), RegexOption.IGNORE_CASE)
-            Log.d("PinnedEditText", "Created regex: ${regex.pattern}")
+            Logger.d("PinnedEditText", "Created regex: ${regex.pattern}")
 
             val text = editable.toString()
             val matches = regex.findAll(text).toList()
-            Log.d("PinnedEditText", "Found ${matches.size} matches")
+            Logger.d("PinnedEditText", "Found ${matches.size} matches")
 
             matches.forEach { match ->
-                Log.d("PinnedEditText", "Match at ${match.range}: '${match.value}'")
+                Logger.d("PinnedEditText", "Match at ${match.range}: '${match.value}'")
                 editable.setSpan(
                     BackgroundColorSpan(searchHighlightColor),
                     match.range.first,
@@ -214,20 +214,20 @@ class PinnedEditText @JvmOverloads constructor(
             }
 
             searchResults = matches.map { it.range }
-            Log.d("PinnedEditText", "Set searchResults to ${searchResults.size} ranges")
+            Logger.d("PinnedEditText", "Set searchResults to ${searchResults.size} ranges")
 
             if (searchResults.isNotEmpty()) {
                 currentSearchIndex = 0
                 val firstRange = searchResults[0]
-                Log.d("PinnedEditText", "Selecting first match: $firstRange")
+                Logger.d("PinnedEditText", "Selecting first match: $firstRange")
                 setSelection(firstRange.first, firstRange.last + 1)
             }
 
             postInvalidate()
-            Log.d("PinnedEditText", "Search update complete")
+            Logger.d("PinnedEditText", "Search update complete")
 
         } catch (e: Exception) {
-            Log.e("PinnedEditText", "Search failed", e)
+            Logger.e("PinnedEditText", "Search failed", e)
             e.printStackTrace()
         }
     }

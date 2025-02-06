@@ -55,7 +55,6 @@ class MainActivity : AppCompatActivity() {
 
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // Load theme from shared preferences before super.onCreate:
         val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
         val isDarkMode = prefs.getBoolean("isDarkMode", false)
         if (isDarkMode) {
