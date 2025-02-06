@@ -1,84 +1,57 @@
 # TextSelector
 
 ![License: Custom Non-Commercial](https://img.shields.io/badge/License-Custom%20Non--Commercial-red.svg)
+![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)
 
-TextSelector is a lightweight Android application designed to simplify text selection and management. With intuitive gesture controls for pinning, highlighting, and searching within text, TextSelector empowers you to save and organize important text snippets for quick retrieval.
+TextSelector enhances text selection on Android by implementing PC-like selection behavior. Double-tap to set selection points and easily select large portions of text - similar to Shift+Click functionality on desktop computers.
+
+![Main Interface](images/portrait_dark.png)
+![Main Interface](images/landscape_light.png)
 
 ## Features
 
-### 🔍 Efficient Text Selection & Highlighting
-- **Double-tap to select:** Quickly pin words or phrases with custom behavior.
-- **Triple-tap to clear:** Easily reset any active selection.
-- **Dynamic search highlighting:** Instantly find and navigate text within your document.
+### 🎯 Intuitive Text Selection
+- **Double-tap anchoring:** Set start and end points for text selection
+- **Triple-tap to clear:** Quickly reset selection points
+- **Natural text selection:** Select text across multiple paragraphs easily
 
-### 💾 Save & Manage Selections
-- **Local storage with Room:** Save, edit, and delete text selections seamlessly.
-- **Interactive library:** Review your saved selections with previews and timestamps.
-- **Custom preview logic:** Generate concise previews of longer texts.
+### 🔍 Smart Search
+- **Real-time highlighting:** Instantly see all matches
+- **Quick navigation:** Jump between search results
+- **Visual feedback:** Clear indication of current match position
 
-### 🎨 Intuitive User Interface
-- **Light/Dark theme support:** Enjoy a modern look that adapts to your preferences.
-- **Material Design components:** Benefit from smooth animations and a responsive layout.
-- **Custom Floating Action Button:** Enhance usability with engaging visual cues.
+### 💾 Selection Management
+- **Save selections:** Store important text snippets
+- **Quick access:** Review and reuse saved selections
+- **Edit & organize:** Manage your saved content efficiently
 
-## System Requirements
+### 🎨 Clean Design
+- **Dark/Light themes:** Comfortable reading in any lighting
+- **Material Design:** Modern, responsive interface
+- **Gesture controls:** Smooth, intuitive interactions
 
-- **Android:** Version 5.0 (Lollipop) and above.
-- **Development:** Android Studio with Kotlin support.
+## Technical Implementation
 
-## Quick Start
+TextSelector demonstrates advanced Android development concepts:
 
-1. **Clone the Repository:**
-   ```bash
-   git clone https://github.com/TobiFank/TextSelector.git
-   ```
-2. **Open in Android Studio:**
-    - Open the project in Android Studio.
-    - Allow Gradle to sync and build the project.
-3. **Run the Application:**
-    - Connect an Android device or launch an emulator.
-    - Click the "Run" button to install and start using the app.
+- **Custom View Implementation:** Extends EditText with sophisticated selection behavior
+- **Gesture Recognition:** Custom gesture detector for precise touch handling
+- **State Management:** Efficient handling of selection states and search results
+- **Room Database:** Local storage with clean architecture principles
 
-## Usage Guide
+## Support My Work
 
-1. **Input Text:**
-    - Launch the app and enter or paste your text into the main text area.
-2. **Select Text:**
-    - Double-tap on a word to pin and select it.
-    - Triple-tap anywhere to clear an active selection.
-3. **Search & Navigate:**
-    - Tap the search icon in the toolbar to locate specific text.
-    - Use the provided navigation buttons to jump between search results.
-4. **Save Selections:**
-    - When text is selected, tap the floating action button (FAB) to save your selection.
-    - Access and manage your saved selections through the Library menu.
+If you find TextSelector useful, consider supporting future development:
+
+[Buy me a token!](https://buymeacoffee.com/TobiFank)
+
+![Buy me a token QR Code](images/buymeatokenqr.png)
 
 ## License
-
-This project is licensed under a **Custom Non-Commercial, Contribution-Based License**.
+Licensed under a Custom Non-Commercial, Contribution-Based License. See [LICENSE](LICENSE.md) for details.
 
 ### Key Points:
-- **Private, non-commercial use** is permitted.
-- **Modifications or enhancements** must be contributed back via pull requests.
-- **Commercial use** and redistribution of derivative works are prohibited without prior consent.
-- **For Commercial Use:** Please contact [Tobias Fankhauser](https://www.linkedin.com/in/tobias-fankhauser) for case-by-case consideration.
-
-See the [LICENSE](LICENSE.md) file for full details.
-
-> **Note:** Some third-party components are licensed under their own terms. Please refer to the included documentation for details:
-> - [Android Room](https://developer.android.com/jetpack/androidx/releases/room)
-> - [Material Components for Android](https://material.io/develop/android)
-
-## Contributing
-
-We welcome contributions that enhance TextSelector! If you have suggestions or improvements, please submit a pull request. All contributions must comply with the **Custom Non-Commercial, Contribution-Based License**.
-
-### Contributor License Agreement (CLA)
-By contributing, you agree to the terms outlined in our CLA. Please review the [CLA](CLA.md) before submitting your pull request.
-
-## Acknowledgments
-
-- **Android Jetpack Room:** For robust local database management.
-- **Material Design:** For providing modern and accessible UI components.
-- **The Open Source Community:** For continuous support and contributions that make projects like this possible.
-
+- **Private, non-commercial use** permitted
+- **Modifications** must be contributed back
+- **Commercial use** requires explicit permission
+- **Contact for Commercial Use:** [Tobias Fankhauser](https://www.linkedin.com/in/tobias-fankhauser)

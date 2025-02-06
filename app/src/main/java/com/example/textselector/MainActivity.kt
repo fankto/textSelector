@@ -160,6 +160,14 @@ class MainActivity : AppCompatActivity() {
         ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
             // Get the inset from the keyboard (IME)
             val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+
+            view.setPadding(
+                navInsets.left,
+                view.paddingTop,
+                navInsets.right,
+                navInsets.bottom
+            )
             // Translate your FAB and search navigation upward by the keyboard’s height.
             binding.saveFab.translationY = -imeInsets.bottom.toFloat()
             binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
