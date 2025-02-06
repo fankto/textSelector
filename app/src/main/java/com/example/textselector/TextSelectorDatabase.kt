@@ -19,7 +19,8 @@ abstract class TextSelectorDatabase : RoomDatabase() {
                     context.applicationContext,
                     TextSelectorDatabase::class.java,
                     "text_selector_database"
-                ).build()
+                ).fallbackToDestructiveMigration()
+                    .build()
                 INSTANCE = instance
                 instance
             }
