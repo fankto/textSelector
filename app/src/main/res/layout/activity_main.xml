@@ -15,7 +15,7 @@
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="24dp"
             android:background="@android:color/transparent"
             app:menu="@menu/menu_main"
             app:title="">
@@ -109,7 +109,7 @@
     <LinearLayout
         android:id="@+id/bottomBanner"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="96dp"
         android:layout_gravity="bottom"
         android:background="@android:color/transparent"
         android:gravity="center_vertical"
@@ -121,6 +121,7 @@
             android:id="@+id/tvBannerInfo"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
             android:text="@string/pin_active"
             android:textColor="@color/gold_primary"
             android:textSize="16sp" />
