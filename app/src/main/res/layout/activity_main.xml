@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -35,17 +34,22 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- The main text area with extract mode disabled -->
-    <com.example.textselector.PinnedEditText
-        android:id="@+id/pinnedEditText"
+    <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:gravity="top"
-        android:padding="16dp"
-        android:textSize="16sp"
-        android:inputType="textMultiLine"
-        android:hint="@string/hint_paste_text"
-        android:imeOptions="flagNoExtractUi"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <com.example.textselector.PinnedEditText
+            android:id="@+id/pinnedEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="top"
+            android:hint="@string/hint_paste_text"
+            android:inputType="textMultiLine"
+            android:padding="16dp"
+            android:scrollbars="vertical" />
+    </androidx.core.widget.NestedScrollView>
 
     <com.example.textselector.CustomFloatingActionButton
         android:id="@+id/saveFab"
@@ -112,6 +116,7 @@
         android:orientation="horizontal"
         android:paddingHorizontal="16dp"
         android:visibility="gone">
+
         <TextView
             android:id="@+id/tvBannerInfo"
             android:layout_width="wrap_content"
