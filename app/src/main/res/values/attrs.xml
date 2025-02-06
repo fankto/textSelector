@@ -6,4 +6,7 @@
         <attr name="metallic_rose_gold_gradient" format="reference" />
         <attr name="metallic_white_gold_gradient" format="reference" />
     </declare-styleable>
+    <attr name="toggleOuterColor" format="color"/>
+    <attr name="toggleInnerColor" format="color"/>
+    <attr name="iconColor" format="color"/>
 </resources>

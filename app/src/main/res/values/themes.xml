@@ -36,6 +36,13 @@
         <item name="android:textSelectHandle">@drawable/selection_handle</item>
         <item name="android:textSelectHandleLeft">@drawable/selection_handle</item>
         <item name="android:textSelectHandleRight">@drawable/selection_handle</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@android:color/black</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/black</item>
     </style>
 
     <!-- Dark theme -->
@@ -57,5 +64,12 @@
 
         <!-- Status bar and navigation -->
         <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@android:color/white</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/white</item>
     </style>
 </resources>

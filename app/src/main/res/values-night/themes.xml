@@ -31,5 +31,12 @@
         <item name="metallic_gold_gradient">@drawable/gradient_metallic_gold</item>
         <item name="metallic_rose_gold_gradient">@drawable/gradient_rose_gold</item>
         <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@android:color/white</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/white</item>
     </style>
 </resources>
