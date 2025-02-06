@@ -3,6 +3,8 @@ package com.example.textselector
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.Parcel
+import android.os.Parcelable
 import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
@@ -245,6 +247,54 @@ class PinnedEditText @JvmOverloads constructor(
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
             bringPointIntoView(range.first)
+        }
+    }
+
+    override fun onSaveInstanceState(): Parcelable? {
+        val superState = super.onSaveInstanceState()
+        val ss = SavedState(superState)
+        ss.pinnedStart = pinnedStart ?: -1
+        ss.pinnedEnd = pinnedEnd ?: -1
+        return ss
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable?) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+        super.onRestoreInstanceState(state.superState)
+        pinnedStart = if (state.pinnedStart != -1) state.pinnedStart else null
+        pinnedEnd = if (state.pinnedEnd != -1) state.pinnedEnd else null
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+    }
+
+    internal class SavedState : BaseSavedState {
+        var pinnedStart: Int = -1
+        var pinnedEnd: Int = -1
+
+        constructor(superState: Parcelable?) : super(superState)
+        private constructor(parcel: Parcel) : super(parcel) {
+            pinnedStart = parcel.readInt()
+            pinnedEnd = parcel.readInt()
+        }
+
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeInt(pinnedStart)
+            out.writeInt(pinnedEnd)
+        }
+
+        companion object CREATOR : Parcelable.Creator<SavedState> {
+            override fun createFromParcel(parcel: Parcel): SavedState {
+                return SavedState(parcel)
+            }
+            override fun newArray(size: Int): Array<SavedState?> {
+                return arrayOfNulls(size)
+            }
         }
     }
 

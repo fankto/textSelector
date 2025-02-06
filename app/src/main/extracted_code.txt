@@ -178,6 +178,8 @@ package com.example.textselector
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.os.Parcel
+import android.os.Parcelable
 import android.text.Editable
 import android.text.Spannable
 import android.text.SpannableString
@@ -423,6 +425,54 @@ class PinnedEditText @JvmOverloads constructor(
         }
     }
 
+    override fun onSaveInstanceState(): Parcelable? {
+        val superState = super.onSaveInstanceState()
+        val ss = SavedState(superState)
+        ss.pinnedStart = pinnedStart ?: -1
+        ss.pinnedEnd = pinnedEnd ?: -1
+        return ss
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable?) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+        super.onRestoreInstanceState(state.superState)
+        pinnedStart = if (state.pinnedStart != -1) state.pinnedStart else null
+        pinnedEnd = if (state.pinnedEnd != -1) state.pinnedEnd else null
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+    }
+
+    internal class SavedState : BaseSavedState {
+        var pinnedStart: Int = -1
+        var pinnedEnd: Int = -1
+
+        constructor(superState: Parcelable?) : super(superState)
+        private constructor(parcel: Parcel) : super(parcel) {
+            pinnedStart = parcel.readInt()
+            pinnedEnd = parcel.readInt()
+        }
+
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeInt(pinnedStart)
+            out.writeInt(pinnedEnd)
+        }
+
+        companion object CREATOR : Parcelable.Creator<SavedState> {
+            override fun createFromParcel(parcel: Parcel): SavedState {
+                return SavedState(parcel)
+            }
+            override fun newArray(size: Int): Array<SavedState?> {
+                return arrayOfNulls(size)
+            }
+        }
+    }
+
 }
 
 
@@ -603,6 +653,21 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
             else -> return super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updatePinBanner()
+    }
+
+    private fun updatePinBanner() {
+        if (binding.pinnedEditText.isPinActive()) {
+            binding.bottomBanner.visibility = View.VISIBLE
+            binding.tvBannerInfo.text = getString(R.string.pin_active)
+        } else {
+            binding.bottomBanner.visibility = View.GONE
+            binding.tvBannerInfo.text = ""
         }
     }
 
@@ -995,6 +1060,13 @@ class MainActivity : AppCompatActivity() {
         <item name="android:textSelectHandle">@drawable/selection_handle</item>
         <item name="android:textSelectHandleLeft">@drawable/selection_handle</item>
         <item name="android:textSelectHandleRight">@drawable/selection_handle</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@android:color/black</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/black</item>
     </style>
 
     <!-- Dark theme -->
@@ -1016,6 +1088,13 @@ class MainActivity : AppCompatActivity() {
 
         <!-- Status bar and navigation -->
         <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@android:color/white</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/white</item>
     </style>
 </resources>
 
@@ -1030,6 +1109,9 @@ class MainActivity : AppCompatActivity() {
         <attr name="metallic_rose_gold_gradient" format="reference" />
         <attr name="metallic_white_gold_gradient" format="reference" />
     </declare-styleable>
+    <attr name="toggleOuterColor" format="color"/>
+    <attr name="toggleInnerColor" format="color"/>
+    <attr name="iconColor" format="color"/>
 </resources>
 
 
@@ -1054,19 +1136,36 @@ class MainActivity : AppCompatActivity() {
     <string name="next_result">Next result</string>
     <string name="pin_active">PIN ACTIVE</string>
     <string name="toggle_theme">Toggle Theme</string>
+    <string name="saved_selections_header">Your Saved Text Selections</string>
 </resources>
 
 
 
 # res/layout/dialog_saved_selections.xml
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.recyclerview.widget.RecyclerView
+<LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/savedSelectionsRecyclerView"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:padding="8dp"
-    android:clipToPadding="false"/>
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/headerText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="Your Saved Text Selections"
+        android:textAppearance="@style/TextAppearance.MetallicGold.Title"
+        android:gravity="center" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/savedSelectionsRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:clipToPadding="false"/>
+
+</LinearLayout>
 
 
 
@@ -1805,13 +1904,13 @@ class MainActivity : AppCompatActivity() {
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
-    <!-- Outer circle (sun) -->
+    <!-- Outer circle -->
     <path
-        android:fillColor="@android:color/white"
+        android:fillColor="?attr/toggleOuterColor"
         android:pathData="M12,2a10,10 0 1,0 10,10A10,10 0 0,0 12,2z"/>
-    <!-- Inner crescent (moon) -->
+    <!-- Inner crescent -->
     <path
-        android:fillColor="@android:color/black"
+        android:fillColor="?attr/toggleInnerColor"
         android:pathData="M12,4a8,8 0 0,0 0,16c4.42,0 8,-3.58 8,-8 0,-1.67 -0.52,-3.21 -1.4,-4.5A6.997,6.997 0 0,1 12,4z"/>
 </vector>
 
@@ -1824,7 +1923,7 @@ class MainActivity : AppCompatActivity() {
     android:width="24dp" android:height="24dp"
     android:viewportWidth="24" android:viewportHeight="24">
     <path
-        android:fillColor="@android:color/black"
+        android:fillColor="?attr/iconColor"
         android:pathData="M15.5,14h-0.79l-0.28,-0.27A6.471,6.471 0,0,0,16,9.5 6.5,6.5 0,1,0,9.5,16a6.471,6.471 0,0,0,4.23,-1.57l0.27,0.28v0.79l5,4.99L20.49,19l-4.99,-5zm-6,0C8.01,14,6,11.99,6,9.5 6,7.01,8.01,5,10.5,5 12.99,5,15,7.01,15,9.5 15,11.99,12.99,14,10.5,14z"/>
 </vector>
 
@@ -1877,6 +1976,13 @@ class MainActivity : AppCompatActivity() {
         <item name="metallic_gold_gradient">@drawable/gradient_metallic_gold</item>
         <item name="metallic_rose_gold_gradient">@drawable/gradient_rose_gold</item>
         <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@android:color/white</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@android:color/white</item>
     </style>
 </resources>
 

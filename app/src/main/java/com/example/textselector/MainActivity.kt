@@ -175,6 +175,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        updatePinBanner()
+    }
+
+    private fun updatePinBanner() {
+        if (binding.pinnedEditText.isPinActive()) {
+            binding.bottomBanner.visibility = View.VISIBLE
+            binding.tvBannerInfo.text = getString(R.string.pin_active)
+        } else {
+            binding.bottomBanner.visibility = View.GONE
+            binding.tvBannerInfo.text = ""
+        }
+    }
+
     // Toggle dark/light mode and store the new preference.
     private fun toggleTheme() {
         val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)

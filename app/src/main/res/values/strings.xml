@@ -17,4 +17,5 @@
     <string name="next_result">Next result</string>
     <string name="pin_active">PIN ACTIVE</string>
     <string name="toggle_theme">Toggle Theme</string>
+    <string name="saved_selections_header">Your Saved Text Selections</string>
 </resources>

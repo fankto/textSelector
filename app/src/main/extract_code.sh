@@ -23,7 +23,7 @@ additional_directories=("java" "res")
 # Example: additional_directories=("src" "lib")
 
 # 3. Array of file extensions (without the dot) to include.
-extensions=("kt" "xml")
+extensions=("kt" "xml" "kts")
 # Modify as needed, e.g., extensions=("py" "cpp" "java")
 
 # 4. Array of directory name patterns to exclude.
