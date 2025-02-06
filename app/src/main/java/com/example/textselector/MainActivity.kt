@@ -34,6 +34,15 @@ class MainActivity : AppCompatActivity() {
     private var searchView: SearchView? = null
     private var searchMenuItem: MenuItem? = null
     private lateinit var db: TextSelectorDatabase
+    private var wasSearchExpanded = false
+    private var savedSearchQuery: String? = null
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
+        outState.putString("savedSearchQuery", searchView?.query?.toString())
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // Load theme from shared preferences before super.onCreate:
@@ -48,6 +57,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (savedInstanceState != null) {
+            wasSearchExpanded = savedInstanceState.getBoolean("wasSearchExpanded", false)
+            savedSearchQuery = savedInstanceState.getString("savedSearchQuery")
+        }
 
         // Initialize the Room database.
         db = TextSelectorDatabase.getDatabase(this)
@@ -148,6 +162,12 @@ class MainActivity : AppCompatActivity() {
                 }
             })
         }
+
+        if (wasSearchExpanded) {
+            searchMenuItem?.expandActionView()
+            searchView?.setQuery(savedSearchQuery, false)
+        }
+
         searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
             override fun onMenuItemActionExpand(item: MenuItem): Boolean {
                 searchView?.requestFocusFromTouch()
