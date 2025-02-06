@@ -19,4 +19,5 @@
     <string name="toggle_theme">Toggle Theme</string>
     <string name="saved_selections_header">Your Saved Text Selections</string>
     <string name="hint_paste_text">Paste your text here</string>
+    <string name="empty_counter">0/0</string>
 </resources>

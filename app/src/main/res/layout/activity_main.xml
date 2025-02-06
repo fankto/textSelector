@@ -46,12 +46,12 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
+    <com.example.textselector.CustomFloatingActionButton
         android:id="@+id/saveFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_marginRight="16dp"
+        android:layout_marginEnd="16dp"
         android:layout_marginBottom="70dp"
         android:contentDescription="@string/save"
         android:src="@drawable/ic_save"
@@ -86,7 +86,7 @@
             android:layout_height="wrap_content"
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
-            android:text="0/0"
+            android:text="@string/empty_counter"
             android:textColor="@color/light_text_primary" />
 
         <ImageButton

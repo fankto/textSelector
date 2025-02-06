@@ -29,6 +29,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -91,8 +92,8 @@ class MainActivity : AppCompatActivity() {
                     MotionEvent.ACTION_UP -> {
                         val upRawX = event.rawX
                         val upRawY = event.rawY
-                        if (Math.abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
-                            Math.abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
+                        if (abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
+                            abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
                         ) {
                             v.performClick()
                         }
@@ -113,7 +114,7 @@ class MainActivity : AppCompatActivity() {
             binding.txtSearchCount.text = ""
             if (binding.pinnedEditText.isPinActive()) {
                 binding.bottomBanner.visibility = View.VISIBLE
-                binding.tvBannerInfo.text = "PIN ACTIVE"
+                binding.tvBannerInfo.text = getString(R.string.pin_active)
             } else {
                 binding.bottomBanner.visibility = View.GONE
                 binding.tvBannerInfo.text = ""
