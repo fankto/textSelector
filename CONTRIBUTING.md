@@ -1,6 +1,6 @@
 # Contributing to HandScript
 
-Thank you for your interest in contributing to HandScript! Before submitting changes, please ensure you read and agree to the Contributor License Agreement (CLA).
+Thank you for your interest in contributing to textSelector! Before submitting changes, please ensure you read and agree to the Contributor License Agreement (CLA).
 
 ## How to Contribute:
 1. Fork the repository.
