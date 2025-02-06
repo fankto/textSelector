@@ -483,6 +483,7 @@ package com.example.textselector
 
 import android.content.Context
 import android.os.Bundle
+import android.text.Html
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
@@ -606,10 +607,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (binding.pinnedEditText.text.isNullOrEmpty()) {
-            binding.pinnedEditText.setText(
-                "The quick brown fox jumps over the lazy dog.\n" +
-                        "This is a test string for searching. Fox, dog, and quick."
-            )
+            binding.pinnedEditText.setText("")
         }
 
         setupToolbar()
@@ -713,16 +711,27 @@ class MainActivity : AppCompatActivity() {
 
     private fun setupToolbar() {
         setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
         val toolbarTitle = binding.toolbar.findViewById<TextView>(R.id.toolbarTitle)
+
+        val aboutMessage = """
+        <div style="font-family: 'Segoe UI', Roboto, -apple-system, sans-serif; max-width: 600px; margin: 2em auto; padding: 2em; background: #ffffff; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h1 style="color: #666666; margin: 0 0 1em 0; font-weight: normal;">Tobias Fankhauser</h1>
+            
+            <div style="display: flex; flex-direction: column; gap: 1em;">
+                <a href="https://github.com/TobiFank" style="color: #f0a500; text-decoration: none;">GitHub</a>
+                <a href="https://www.linkedin.com/in/tobias-fankhauser" style="color: #f0a500; text-decoration: none;">LinkedIn</a>
+                <a href="https://buymeacoffee.com/TobiFank" style="color: #f0a500; text-decoration: none;">Buy me a coffee</a>
+            </div>
+    
+            <p style="color: #666666; margin-top: 2em;">Thank you for exploring my work! I welcome your feedback and bug reports to help make this app even better. Have a great day!</p>
+        </div>
+        """.trimIndent()
+
         toolbarTitle.setOnClickListener {
             MaterialAlertDialogBuilder(this)
                 .setTitle("About")
-                .setMessage(
-                    "Tobias Fankhauser\n" +
-                            "GitHub: https://github.com/TobiFank\n" +
-                            "LinkedIn: www.linkedin.com/in/tobias-fankhauser\n" +
-                            "Buy me a coffee: buymeacoffee.com/TobiFank"
-                )
+                .setMessage(Html.fromHtml(aboutMessage, Html.FROM_HTML_MODE_LEGACY))
                 .setPositiveButton("OK", null)
                 .show()
         }
@@ -1108,11 +1117,11 @@ class MainActivity : AppCompatActivity() {
         <item name="android:textSelectHandleRight">@drawable/selection_handle</item>
 
         <!-- Theme toggle icon -->
-        <item name="toggleOuterColor">@android:color/white</item>
-        <item name="toggleInnerColor">@android:color/black</item>
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
 
         <!-- Icon color -->
-        <item name="iconColor">@android:color/black</item>
+        <item name="iconColor">@color/gold_primary</item>
     </style>
 
     <!-- Dark theme -->
@@ -1136,11 +1145,11 @@ class MainActivity : AppCompatActivity() {
         <item name="android:windowLightStatusBar">false</item>
 
         <!-- Theme toggle icon -->
-        <item name="toggleOuterColor">@android:color/black</item>
-        <item name="toggleInnerColor">@android:color/white</item>
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
 
         <!-- Icon color -->
-        <item name="iconColor">@android:color/white</item>
+        <item name="iconColor">@color/gold_primary</item>
     </style>
 </resources>
 
@@ -1183,6 +1192,7 @@ class MainActivity : AppCompatActivity() {
     <string name="pin_active">PIN ACTIVE</string>
     <string name="toggle_theme">Toggle Theme</string>
     <string name="saved_selections_header">Your Saved Text Selections</string>
+    <string name="hint_paste_text">Paste your text here</string>
 </resources>
 
 
@@ -1384,13 +1394,14 @@ class MainActivity : AppCompatActivity() {
             android:layout_height="?attr/actionBarSize"
             android:layout_marginTop="15dp"
             android:background="@android:color/transparent"
-            app:menu="@menu/menu_main">
+            app:menu="@menu/menu_main"
+            app:title="">
 
             <TextView
                 android:id="@+id/toolbarTitle"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="center"
+                android:layout_gravity="start"
                 android:clickable="true"
                 android:focusable="true"
                 android:text="@string/app_name"
@@ -1405,11 +1416,12 @@ class MainActivity : AppCompatActivity() {
         android:id="@+id/pinnedEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@android:color/transparent"
         android:gravity="top"
         android:padding="16dp"
         android:textSize="16sp"
+        android:hint="@string/hint_paste_text"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/saveFab"
@@ -2034,11 +2046,11 @@ class MainActivity : AppCompatActivity() {
         <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
 
         <!-- Theme toggle icon -->
-        <item name="toggleOuterColor">@android:color/black</item>
-        <item name="toggleInnerColor">@android:color/white</item>
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
 
         <!-- Icon color -->
-        <item name="iconColor">@android:color/white</item>
+        <item name="iconColor">@color/gold_primary</item>
     </style>
 </resources>
 

@@ -39,11 +39,12 @@
         android:id="@+id/pinnedEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="@android:color/transparent"
         android:gravity="top"
         android:padding="16dp"
         android:textSize="16sp"
+        android:hint="@string/hint_paste_text"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
 
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/saveFab"

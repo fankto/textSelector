@@ -126,10 +126,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (binding.pinnedEditText.text.isNullOrEmpty()) {
-            binding.pinnedEditText.setText(
-                "The quick brown fox jumps over the lazy dog.\n" +
-                        "This is a test string for searching. Fox, dog, and quick."
-            )
+            binding.pinnedEditText.setText("")
         }
 
         setupToolbar()
@@ -246,7 +243,7 @@ class MainActivity : AppCompatActivity() {
                 <a href="https://buymeacoffee.com/TobiFank" style="color: #f0a500; text-decoration: none;">Buy me a coffee</a>
             </div>
     
-            <p style="color: #666666; margin-top: 2em;">Thanks for visiting! Let's connect and create something amazing together.</p>
+            <p style="color: #666666; margin-top: 2em;">Thank you for exploring my work! I welcome your feedback and bug reports to help make this app even better. Have a great day!</p>
         </div>
         """.trimIndent()
 
