@@ -43,12 +43,14 @@
         <com.example.textselector.PinnedEditText
             android:id="@+id/pinnedEditText"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:gravity="top"
             android:hint="@string/hint_paste_text"
+            android:imeOptions="actionSearch|flagNoExtractUi"
             android:inputType="textMultiLine"
             android:padding="16dp"
-            android:scrollbars="vertical" />
+            android:textSize="16sp"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
     </androidx.core.widget.NestedScrollView>
 
     <com.example.textselector.CustomFloatingActionButton
@@ -92,7 +94,7 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp"
             android:text="@string/empty_counter"
-            android:textColor="@color/light_text_primary" />
+            android:textColor="@color/gold_primary" />
 
         <ImageButton
             android:id="@+id/btnNext"

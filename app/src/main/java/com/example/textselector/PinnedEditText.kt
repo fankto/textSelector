@@ -54,7 +54,10 @@ class PinnedEditText @JvmOverloads constructor(
     private fun handleDoubleTap(offset: Int) {
         // Determine the tapped word’s boundaries.
         val (wordStart, wordEnd) = selectWordAt(offset)
-        Logger.d("PinnedEditText", "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd")
+        Logger.d(
+            "PinnedEditText",
+            "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd"
+        )
 
         // Save the current scroll position so we can restore it.
         val currentScrollY = scrollY
@@ -103,8 +106,6 @@ class PinnedEditText @JvmOverloads constructor(
         }
         invalidate()
     }
-
-
 
 
     fun clearSelectionPins() {
@@ -288,17 +289,26 @@ class PinnedEditText @JvmOverloads constructor(
         }
     }
 
+    private fun scrollToOffset(offset: Int) {
+        val layout = layout ?: return
+        val line = layout.getLineForOffset(offset)
+        // Calculate the vertical position of this line
+        val y = layout.getLineTop(line)
+        // scrollTo(x, y) will scroll the text so that the given y-coordinate is at the top.
+        scrollTo(scrollX, y)
+    }
+
+
     fun nextSearchResult() {
         if (searchResults.isNotEmpty()) {
             currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            bringPointIntoView(range.first)
+            post { scrollToOffset(range.first) }
         }
     }
 
     override fun bringPointIntoView(offset: Int): Boolean {
-        // Disable automatic scrolling when selection changes.
         return false
     }
 
@@ -309,7 +319,7 @@ class PinnedEditText @JvmOverloads constructor(
                 if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            bringPointIntoView(range.first)
+            post { scrollToOffset(range.first) }
         }
     }
 

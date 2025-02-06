@@ -250,42 +250,50 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     private fun handleDoubleTap(offset: Int) {
+        // Determine the tapped word’s boundaries.
         val (wordStart, wordEnd) = selectWordAt(offset)
-        Logger.d(
-            "PinnedEditText",
-            "handleDoubleTap: tapped offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd"
-        )
+        Logger.d("PinnedEditText", "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd")
+
+        // Save the current scroll position so we can restore it.
+        val currentScrollY = scrollY
 
         if (pinnedStart == null || pinnedEnd == null) {
+            // First double-tap: set both pins to exactly the tapped word.
             pinnedStart = wordStart
             pinnedEnd = wordEnd
-            Logger.d(
-                "PinnedEditText",
-                "Initial pin set: pinnedStart=$pinnedStart, pinnedEnd=$pinnedEnd"
-            )
             setSelection(pinnedStart!!, pinnedEnd!!)
         } else {
-            val tapMid = (wordStart + wordEnd) / 2
-            val distanceToStart = abs(tapMid - pinnedStart!!)
-            val distanceToEnd = abs(tapMid - pinnedEnd!!)
-            Logger.d(
-                "PinnedEditText",
-                "handleDoubleTap: tapMid=$tapMid, distanceToStart=$distanceToStart, distanceToEnd=$distanceToEnd"
-            )
-
-            if (distanceToStart <= distanceToEnd) {
+            // Decide which pin to update:
+            if (wordEnd <= pinnedStart!!) {
+                // The new word is entirely before the current selection.
                 pinnedStart = wordStart
-                Logger.d("PinnedEditText", "Updated pinnedStart to $pinnedStart")
-            } else {
+            } else if (wordStart >= pinnedEnd!!) {
+                // The new word is entirely after the current selection.
                 pinnedEnd = wordEnd
-                Logger.d("PinnedEditText", "Updated pinnedEnd to $pinnedEnd")
+            } else {
+                // The new word overlaps the current selection.
+                // Compare the difference between new word's start and current start pin,
+                // and new word's end and current end pin.
+                val diffStart = abs(wordStart - pinnedStart!!)
+                val diffEnd = abs(wordEnd - pinnedEnd!!)
+                if (diffStart <= diffEnd) {
+                    // Update the start pin to the new word’s start.
+                    pinnedStart = wordStart
+                } else {
+                    // Update the end pin to the new word’s end.
+                    pinnedEnd = wordEnd
+                }
             }
+            // Always set selection from the lower to the higher index.
             val newStart = min(pinnedStart!!, pinnedEnd!!)
             val newEnd = max(pinnedStart!!, pinnedEnd!!)
-            Logger.d("PinnedEditText", "Final selection boundaries: $newStart to $newEnd")
             setSelection(newStart, newEnd)
         }
 
+        // Restore the scroll position so the viewport remains where it was.
+        post { scrollTo(scrollX, currentScrollY) }
+
+        // Clear search highlights if any.
         if (searchResults.isNotEmpty()) {
             clearSearchHighlights()
         } else {
@@ -293,6 +301,8 @@ class PinnedEditText @JvmOverloads constructor(
         }
         invalidate()
     }
+
+
 
 
     fun clearSelectionPins() {
@@ -327,19 +337,13 @@ class PinnedEditText @JvmOverloads constructor(
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                // Get view's screen location.
-                val location = IntArray(2)
-                getLocationOnScreen(location)
-                val localX = e.rawX - location[0]
-                val localY = e.rawY - location[1]
-                // Compute the offset from the local coordinates.
-                val offset = getOffsetForPosition(localX, localY)
-                Logger.d(
-                    "PinnedEditText",
-                    "onDoubleTap: rawX=${e.rawX}, rawY=${e.rawY}, " +
-                            "viewLocation=(${location[0]},${location[1]}), localX=$localX, localY=$localY, " +
-                            "scrollX=$scrollX, scrollY=$scrollY, computed offset=$offset"
-                )
+                // Use the layout directly to compute the tapped offset.
+                val layout = layout ?: return false
+                // Adjust e.y from the visible area to the full text layout coordinate:
+                val adjustedY = e.y + scrollY - totalPaddingTop
+                val line = layout.getLineForVertical(adjustedY.toInt())
+                val offset = layout.getOffsetForHorizontal(line, e.x)
+
                 handleDoubleTap(offset)
                 return true
             }
@@ -408,10 +412,7 @@ class PinnedEditText @JvmOverloads constructor(
      */
     private fun selectWordAt(offset: Int): Pair<Int, Int> {
         val textStr = text?.toString() ?: ""
-        if (textStr.isEmpty()) {
-            Logger.d("PinnedEditText", "selectWordAt: empty text, returning (0,0)")
-            return Pair(0, 0)
-        }
+        if (textStr.isEmpty()) return Pair(0, 0)
         var start = offset
         var end = offset
         while (start > 0 && !textStr[start - 1].isWhitespace()) {
@@ -420,13 +421,8 @@ class PinnedEditText @JvmOverloads constructor(
         while (end < textStr.length && !textStr[end].isWhitespace()) {
             end++
         }
-        Logger.d(
-            "PinnedEditText",
-            "selectWordAt: offset=$offset, determined word boundaries=($start, $end)"
-        )
         return Pair(start, end)
     }
-
 
     fun getSearchResultsCount(): Int = searchResults.size
 
@@ -498,6 +494,12 @@ class PinnedEditText @JvmOverloads constructor(
             bringPointIntoView(range.first)
         }
     }
+
+    override fun bringPointIntoView(offset: Int): Boolean {
+        // Disable automatic scrolling when selection changes.
+        return false
+    }
+
 
     fun previousSearchResult() {
         if (searchResults.isNotEmpty()) {
@@ -1683,7 +1685,7 @@ class MainActivity : AppCompatActivity() {
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
-            android:layout_marginTop="15dp"
+            android:layout_marginTop="24dp"
             android:background="@android:color/transparent"
             app:menu="@menu/menu_main"
             app:title="">
@@ -1777,7 +1779,7 @@ class MainActivity : AppCompatActivity() {
     <LinearLayout
         android:id="@+id/bottomBanner"
         android:layout_width="match_parent"
-        android:layout_height="48dp"
+        android:layout_height="96dp"
         android:layout_gravity="bottom"
         android:background="@android:color/transparent"
         android:gravity="center_vertical"
@@ -1789,6 +1791,7 @@ class MainActivity : AppCompatActivity() {
             android:id="@+id/tvBannerInfo"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
             android:text="@string/pin_active"
             android:textColor="@color/gold_primary"
             android:textSize="16sp" />

@@ -26,6 +26,7 @@ import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
@@ -164,6 +165,16 @@ class MainActivity : AppCompatActivity() {
             binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
             // Always return the insets so that child views can also use them.
             insets
+        }
+
+        binding.pinnedEditText.setOnEditorActionListener { v, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                binding.pinnedEditText.nextSearchResult()
+                updateSearchNavigation()
+                true
+            } else {
+                false
+            }
         }
     }
 
@@ -364,7 +375,8 @@ class MainActivity : AppCompatActivity() {
         bottomSheetDialog.show()
 
         // Force the bottom sheet to expand fully
-        val bottomSheet = bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+        val bottomSheet =
+            bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
         bottomSheet?.let {
             BottomSheetBehavior.from(it).state = BottomSheetBehavior.STATE_EXPANDED
         }
@@ -421,6 +433,14 @@ class MainActivity : AppCompatActivity() {
     private fun setupSearchNavigation() {
         val btnPrev = binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev)
         val btnNext = binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext)
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev).setOnClickListener {
+            binding.pinnedEditText.previousSearchResult()
+            updateSearchNavigation()
+        }
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext).setOnClickListener {
+            binding.pinnedEditText.nextSearchResult()
+            updateSearchNavigation()
+        }
         btnPrev.setOnClickListener {
             binding.pinnedEditText.previousSearchResult()
             updateSearchNavigation()
