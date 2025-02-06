@@ -30,6 +30,7 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.core.view.WindowCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlin.math.abs
 
@@ -64,8 +65,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         super.onCreate(savedInstanceState)
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
-                View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = !isDarkMode
 
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
