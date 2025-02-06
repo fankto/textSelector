@@ -3,6 +3,7 @@ package com.example.textselector
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Rect
 import android.os.Parcel
 import android.os.Parcelable
 import android.text.Editable
@@ -107,15 +108,6 @@ class PinnedEditText @JvmOverloads constructor(
         }
     }
 
-    init {
-        if (text !is Editable) {
-            Logger.d("PinnedEditText", "Converting text to Editable")
-            setText(Editable.Factory.getInstance().newEditable(text))
-        }
-    }
-
-
-
     // Gesture detector for double taps.
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
@@ -126,6 +118,32 @@ class PinnedEditText @JvmOverloads constructor(
             }
         })
 
+    init {
+        if (text !is Editable) {
+            Logger.d("PinnedEditText", "Converting text to Editable")
+            setText(Editable.Factory.getInstance().newEditable(text))
+        }
+        // Disable long press so the double tap isn’t delayed
+        gestureDetector.setIsLongpressEnabled(false)
+        // Prevent the keyboard from appearing automatically when the view gains focus.
+        // (This makes scrolling and taps not open the keyboard by default.)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            showSoftInputOnFocus = false
+        } else {
+            @Suppress("DEPRECATION")
+            setTextIsSelectable(true)
+        }
+    }
+
+    override fun onFocusChanged(focused: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+        super.onFocusChanged(focused, direction, previouslyFocusedRect)
+        // When losing focus (e.g. when the keyboard is dismissed) we restore the pinned selection.
+        if (!focused && pinnedStart != null && pinnedEnd != null) {
+            // Post a restore so that when focus returns the selection remains.
+            post { setSelection(pinnedStart!!, pinnedEnd!!) }
+        }
+    }
+
     // Paint used to draw the "PIN" indicator.
     private val pinIndicatorPaint = Paint().apply {
         color = ContextCompat.getColor(context, R.color.gold_primary)
@@ -134,7 +152,7 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // Triple tap detection.
+        // --- Triple tap detection remains ---
         if (event.action == MotionEvent.ACTION_DOWN) {
             val now = System.currentTimeMillis()
             if (now - lastTapTime < tripleTapThreshold) {
@@ -146,12 +164,17 @@ class PinnedEditText @JvmOverloads constructor(
             if (tapCount == 3) {
                 clearSelectionPins()
                 tapCount = 0
-                return true
+                // Let the default handling update the view as well.
+                return super.onTouchEvent(event)
             }
         }
-        gestureDetector.onTouchEvent(event)
-        return super.onTouchEvent(event)
+        // Let the gesture detector process the event.
+        val gestureConsumed = gestureDetector.onTouchEvent(event)
+        // Always call super.onTouchEvent so that the default selection and scrolling work.
+        val superConsumed = super.onTouchEvent(event)
+        return gestureConsumed || superConsumed
     }
+
 
     /**
      * Returns the full boundaries (start, end) of the word at the given text offset.
@@ -243,7 +266,8 @@ class PinnedEditText @JvmOverloads constructor(
 
     fun previousSearchResult() {
         if (searchResults.isNotEmpty()) {
-            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            currentSearchIndex =
+                if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
             bringPointIntoView(range.first)
@@ -292,6 +316,7 @@ class PinnedEditText @JvmOverloads constructor(
             override fun createFromParcel(parcel: Parcel): SavedState {
                 return SavedState(parcel)
             }
+
             override fun newArray(size: Int): Array<SavedState?> {
                 return arrayOfNulls(size)
             }

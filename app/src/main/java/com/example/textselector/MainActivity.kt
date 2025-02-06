@@ -30,7 +30,9 @@ import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.TextView
+import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import kotlin.math.abs
 
@@ -152,6 +154,16 @@ class MainActivity : AppCompatActivity() {
             intent.getStringExtra("android.intent.extra.TEXT")?.let {
                 binding.pinnedEditText.setText(it)
             }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            // Get the inset from the keyboard (IME)
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            // Translate your FAB and search navigation upward by the keyboard’s height.
+            binding.saveFab.translationY = -imeInsets.bottom.toFloat()
+            binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
+            // Always return the insets so that child views can also use them.
+            insets
         }
     }
 
