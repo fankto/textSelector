@@ -51,6 +51,10 @@ class PinnedEditText @JvmOverloads constructor(
         selectionChangeListener?.invoke(selStart, selEnd)
     }
 
+    private var restoreScrollRunnable: Runnable? = null
+    private var savedScrollY: Int = 0
+    private var userScrolling = false
+
     private fun handleDoubleTap(offset: Int) {
         // Determine the tapped word’s boundaries.
         val (wordStart, wordEnd) = selectWordAt(offset)
@@ -95,16 +99,16 @@ class PinnedEditText @JvmOverloads constructor(
             setSelection(newStart, newEnd)
         }
 
-        // Restore the scroll position so the viewport remains where it was.
-        post { scrollTo(scrollX, currentScrollY) }
-
-        // Clear search highlights if any.
-        if (searchResults.isNotEmpty()) {
-            clearSearchHighlights()
-        } else {
-            onSearchCleared?.invoke()
+        savedScrollY = scrollY
+        // Cancel any previous restoration runnable
+        restoreScrollRunnable?.let { removeCallbacks(it) }
+        // Schedule scroll restoration after a short delay (adjust delay as needed)
+        restoreScrollRunnable = Runnable {
+            if (!userScrolling) {
+                scrollTo(scrollX, savedScrollY)
+            }
         }
-        invalidate()
+        postDelayed(restoreScrollRunnable, 300) // 300ms delay
     }
 
 
@@ -186,27 +190,19 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        // --- Triple tap detection remains ---
-        if (event.action == MotionEvent.ACTION_DOWN) {
-            val now = System.currentTimeMillis()
-            if (now - lastTapTime < tripleTapThreshold) {
-                tapCount++
-            } else {
-                tapCount = 1
+        when (event.action) {
+            MotionEvent.ACTION_MOVE -> {
+                // The user is scrolling manually; cancel the scheduled restoration
+                userScrolling = true
+                restoreScrollRunnable?.let { removeCallbacks(it) }
             }
-            lastTapTime = now
-            if (tapCount == 3) {
-                clearSelectionPins()
-                tapCount = 0
-                // Let the default handling update the view as well.
-                return super.onTouchEvent(event)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                userScrolling = false
             }
         }
-        // Let the gesture detector process the event.
-        val gestureConsumed = gestureDetector.onTouchEvent(event)
-        // Always call super.onTouchEvent so that the default selection and scrolling work.
-        val superConsumed = super.onTouchEvent(event)
-        return gestureConsumed || superConsumed
+        // Let the gesture detector and default handling process the event
+        gestureDetector.onTouchEvent(event)
+        return super.onTouchEvent(event)
     }
 
 

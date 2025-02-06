@@ -1,0 +1,2345 @@
+# AndroidManifest.xml
+<?xml version="1.0" encoding="utf-8"?>
+<manifest package="com.example.textselector"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="TextSelector"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.TextSelector"
+            android:windowSoftInputMode="adjustResize|stateHidden">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <!-- Share intent -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="text/plain"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
+
+
+
+
+# java/com/example/textselector/TextSelectorDatabase.kt
+package com.example.textselector
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+
+@Database(entities = [SavedSelection::class], version = 1)
+abstract class TextSelectorDatabase : RoomDatabase() {
+    abstract fun savedSelectionDao(): SavedSelectionDao
+
+    companion object {
+        @Volatile
+        private var INSTANCE: TextSelectorDatabase? = null
+
+        fun getDatabase(context: Context): TextSelectorDatabase {
+            return INSTANCE ?: synchronized(this) {
+                val instance = Room.databaseBuilder(
+                    context.applicationContext,
+                    TextSelectorDatabase::class.java,
+                    "text_selector_database"
+                ).fallbackToDestructiveMigration()
+                    .build()
+                INSTANCE = instance
+                instance
+            }
+        }
+    }
+}
+
+
+
+
+# java/com/example/textselector/SavedSelection.kt
+// app/src/main/java/com/example/textselector/SavedSelection.kt
+package com.example.textselector
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+@Entity(tableName = "saved_selection")
+data class SavedSelection(
+    @PrimaryKey val id: Long = System.currentTimeMillis(), // use timestamp as unique id
+    val name: String,
+    val text: String,
+    val timestamp: Long = System.currentTimeMillis()
+) {
+    fun getPreviewText(): String {
+        // Get first paragraph or first 150 chars
+        val endIndex = minOf(
+            text.indexOf("\n").takeIf { it != -1 } ?: 150,
+            150
+        )
+        return text.take(endIndex) + if (text.length > endIndex) "..." else ""
+    }
+}
+
+
+
+
+# java/com/example/textselector/CustomFloatingActionButton.kt
+package com.example.textselector
+
+import android.content.Context
+import android.util.AttributeSet
+import com.google.android.material.floatingactionbutton.FloatingActionButton
+
+class CustomFloatingActionButton @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0
+) : FloatingActionButton(context, attrs, defStyleAttr) {
+    override fun performClick(): Boolean {
+        // Optionally add any custom behavior here.
+        return super.performClick()
+    }
+}
+
+
+
+
+# java/com/example/textselector/SavedSelectionDao.kt
+package com.example.textselector
+
+import androidx.room.*
+
+@Dao
+interface SavedSelectionDao {
+    @Query("SELECT * FROM saved_selection ORDER BY timestamp DESC")
+    suspend fun getAll(): List<SavedSelection>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(selection: SavedSelection)
+
+    @Update
+    suspend fun update(selection: SavedSelection)
+
+    @Delete
+    suspend fun delete(selection: SavedSelection)
+}
+
+
+
+
+# java/com/example/textselector/SavedSelectionsAdapter.kt
+// app/src/main/java/com/example/textselector/SavedSelectionsAdapter.kt
+package com.example.textselector
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.google.android.material.button.MaterialButton
+import java.text.SimpleDateFormat
+import java.util.*
+
+class SavedSelectionsAdapter(
+    private var selections: List<SavedSelection>,
+    private val onItemClick: (SavedSelection) -> Unit,
+    private val onDeleteClick: (SavedSelection) -> Unit,
+    private val onEditClick: (SavedSelection) -> Unit
+) : RecyclerView.Adapter<SavedSelectionsAdapter.ViewHolder>() {
+
+    private val dateFormat = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault())
+
+    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val titleText: TextView = view.findViewById(R.id.selectionTitle)
+        val timestampText: TextView = view.findViewById(R.id.timestamp)
+        val previewText: TextView = view.findViewById(R.id.previewText)
+        val deleteButton: MaterialButton = view.findViewById(R.id.deleteButton)
+        val editButton: MaterialButton = view.findViewById(R.id.editButton)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+        val view = LayoutInflater.from(parent.context)
+            .inflate(R.layout.item_saved_selection, parent, false)
+        return ViewHolder(view)
+    }
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val selection = selections[position]
+        holder.titleText.text = selection.name
+        holder.timestampText.text = dateFormat.format(Date(selection.timestamp))
+        holder.previewText.text = selection.getPreviewText()
+
+        holder.itemView.setOnClickListener { onItemClick(selection) }
+        holder.deleteButton.setOnClickListener { onDeleteClick(selection) }
+        holder.editButton.setOnClickListener { onEditClick(selection) }
+    }
+
+    override fun getItemCount() = selections.size
+
+    fun updateSelections(newSelections: List<SavedSelection>) {
+        selections = newSelections.sortedByDescending { it.timestamp }
+        notifyDataSetChanged()
+    }
+}
+
+
+
+# java/com/example/textselector/PinnedEditText.kt
+package com.example.textselector
+
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Rect
+import android.os.Parcel
+import android.os.Parcelable
+import android.text.Editable
+import android.text.Spannable
+import android.text.SpannableString
+import android.text.SpannableStringBuilder
+import android.text.style.BackgroundColorSpan
+import android.util.AttributeSet
+import android.util.Log
+import android.view.GestureDetector
+import android.view.MotionEvent
+import android.widget.TextView
+import androidx.appcompat.widget.AppCompatEditText
+import androidx.core.content.ContextCompat
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
+import java.util.regex.Pattern
+
+class PinnedEditText @JvmOverloads constructor(
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = android.R.attr.editTextStyle
+) : AppCompatEditText(context, attrs, defStyleAttr) {
+
+    // Stores the two boundaries of the current selection.
+    private var pinnedStart: Int? = null
+    private var pinnedEnd: Int? = null
+
+    // For detecting triple taps.
+    private var tapCount = 0
+    private var lastTapTime = 0L
+    private val tripleTapThreshold = 500L // milliseconds
+
+    // --- New search navigation support ---
+    private var searchResults: List<IntRange> = emptyList()
+    private var currentSearchIndex: Int = 0
+
+    var selectionChangeListener: ((Int, Int) -> Unit)? = null
+    var onSearchCleared: (() -> Unit)? = null
+    fun isPinActive(): Boolean = pinnedStart != null && pinnedEnd != null
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        selectionChangeListener?.invoke(selStart, selEnd)
+    }
+
+    private fun handleDoubleTap(offset: Int) {
+        // Determine the tapped word’s boundaries.
+        val (wordStart, wordEnd) = selectWordAt(offset)
+        Logger.d(
+            "PinnedEditText",
+            "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd"
+        )
+
+        // Save the current scroll position so we can restore it.
+        val currentScrollY = scrollY
+
+        if (pinnedStart == null || pinnedEnd == null) {
+            // First double-tap: set both pins to exactly the tapped word.
+            pinnedStart = wordStart
+            pinnedEnd = wordEnd
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        } else {
+            // Decide which pin to update:
+            if (wordEnd <= pinnedStart!!) {
+                // The new word is entirely before the current selection.
+                pinnedStart = wordStart
+            } else if (wordStart >= pinnedEnd!!) {
+                // The new word is entirely after the current selection.
+                pinnedEnd = wordEnd
+            } else {
+                // The new word overlaps the current selection.
+                // Compare the difference between new word's start and current start pin,
+                // and new word's end and current end pin.
+                val diffStart = abs(wordStart - pinnedStart!!)
+                val diffEnd = abs(wordEnd - pinnedEnd!!)
+                if (diffStart <= diffEnd) {
+                    // Update the start pin to the new word’s start.
+                    pinnedStart = wordStart
+                } else {
+                    // Update the end pin to the new word’s end.
+                    pinnedEnd = wordEnd
+                }
+            }
+            // Always set selection from the lower to the higher index.
+            val newStart = min(pinnedStart!!, pinnedEnd!!)
+            val newEnd = max(pinnedStart!!, pinnedEnd!!)
+            setSelection(newStart, newEnd)
+        }
+
+        // Restore the scroll position so the viewport remains where it was.
+        post { scrollTo(scrollX, currentScrollY) }
+
+        // Clear search highlights if any.
+        if (searchResults.isNotEmpty()) {
+            clearSearchHighlights()
+        } else {
+            onSearchCleared?.invoke()
+        }
+        invalidate()
+    }
+
+
+    fun clearSelectionPins() {
+        pinnedStart = null
+        pinnedEnd = null
+        val pos = selectionStart
+        setSelection(pos, pos)
+        invalidate()
+        onSearchCleared?.invoke()
+    }
+
+    fun clearSearchHighlights(invokeCallback: Boolean = true) {
+        val editable = text ?: return
+        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+        spans.forEach { span ->
+            if (span.backgroundColor == searchHighlightColor) {
+                editable.removeSpan(span)
+            }
+        }
+        searchResults = emptyList()
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+        if (invokeCallback) {
+            onSearchCleared?.invoke()
+        }
+    }
+
+    // Gesture detector for double taps.
+    private val gestureDetector =
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                // Use the layout directly to compute the tapped offset.
+                val layout = layout ?: return false
+                // Adjust e.y from the visible area to the full text layout coordinate:
+                val adjustedY = e.y + scrollY - totalPaddingTop
+                val line = layout.getLineForVertical(adjustedY.toInt())
+                val offset = layout.getOffsetForHorizontal(line, e.x)
+
+                handleDoubleTap(offset)
+                return true
+            }
+        })
+
+    init {
+        if (text !is Editable) {
+            Logger.d("PinnedEditText", "Converting text to Editable")
+            setText(Editable.Factory.getInstance().newEditable(text))
+        }
+        // Disable long press so the double tap isn’t delayed
+        gestureDetector.setIsLongpressEnabled(false)
+        // Prevent the keyboard from appearing automatically when the view gains focus.
+        // (This makes scrolling and taps not open the keyboard by default.)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
+            showSoftInputOnFocus = false
+        } else {
+            @Suppress("DEPRECATION")
+            setTextIsSelectable(true)
+        }
+    }
+
+    override fun onFocusChanged(focused: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
+        super.onFocusChanged(focused, direction, previouslyFocusedRect)
+        // When losing focus (e.g. when the keyboard is dismissed) we restore the pinned selection.
+        if (!focused && pinnedStart != null && pinnedEnd != null) {
+            // Post a restore so that when focus returns the selection remains.
+            post { setSelection(pinnedStart!!, pinnedEnd!!) }
+        }
+    }
+
+    // Paint used to draw the "PIN" indicator.
+    private val pinIndicatorPaint = Paint().apply {
+        color = ContextCompat.getColor(context, R.color.gold_primary)
+        textSize = 36f  // adjust as needed
+        isAntiAlias = true
+    }
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        // --- Triple tap detection remains ---
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val now = System.currentTimeMillis()
+            if (now - lastTapTime < tripleTapThreshold) {
+                tapCount++
+            } else {
+                tapCount = 1
+            }
+            lastTapTime = now
+            if (tapCount == 3) {
+                clearSelectionPins()
+                tapCount = 0
+                // Let the default handling update the view as well.
+                return super.onTouchEvent(event)
+            }
+        }
+        // Let the gesture detector process the event.
+        val gestureConsumed = gestureDetector.onTouchEvent(event)
+        // Always call super.onTouchEvent so that the default selection and scrolling work.
+        val superConsumed = super.onTouchEvent(event)
+        return gestureConsumed || superConsumed
+    }
+
+
+    /**
+     * Returns the full boundaries (start, end) of the word at the given text offset.
+     */
+    private fun selectWordAt(offset: Int): Pair<Int, Int> {
+        val textStr = text?.toString() ?: ""
+        if (textStr.isEmpty()) return Pair(0, 0)
+        var start = offset
+        var end = offset
+        while (start > 0 && !textStr[start - 1].isWhitespace()) {
+            start--
+        }
+        while (end < textStr.length && !textStr[end].isWhitespace()) {
+            end++
+        }
+        return Pair(start, end)
+    }
+
+    fun getSearchResultsCount(): Int = searchResults.size
+
+    fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
+
+    fun updateSearch(query: String) {
+        Logger.d("PinnedEditText", "updateSearch called with query: '$query'")
+
+        val editable = editableText
+        if (editable == null) {
+            Logger.e("PinnedEditText", "Text is not editable!")
+            return
+        }
+        Logger.d("PinnedEditText", "Current text content: '${editable.toString()}'")
+
+        clearSearchHighlights(invokeCallback = false)
+        Logger.d("PinnedEditText", "Cleared previous highlights")
+
+        if (query.isEmpty()) {
+            Logger.d("PinnedEditText", "Empty query, returning")
+            return
+        }
+
+        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        Logger.d("PinnedEditText", "Search highlight color: $searchHighlightColor")
+
+        try {
+            val regex = Regex(Regex.escape(query), RegexOption.IGNORE_CASE)
+            Logger.d("PinnedEditText", "Created regex: ${regex.pattern}")
+
+            val text = editable.toString()
+            val matches = regex.findAll(text).toList()
+            Logger.d("PinnedEditText", "Found ${matches.size} matches")
+
+            matches.forEach { match ->
+                Logger.d("PinnedEditText", "Match at ${match.range}: '${match.value}'")
+                editable.setSpan(
+                    BackgroundColorSpan(searchHighlightColor),
+                    match.range.first,
+                    match.range.last + 1,
+                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+                )
+            }
+
+            searchResults = matches.map { it.range }
+            Logger.d("PinnedEditText", "Set searchResults to ${searchResults.size} ranges")
+
+            if (searchResults.isNotEmpty()) {
+                currentSearchIndex = 0
+                val firstRange = searchResults[0]
+                Logger.d("PinnedEditText", "Selecting first match: $firstRange")
+                setSelection(firstRange.first, firstRange.last + 1)
+            }
+
+            postInvalidate()
+            Logger.d("PinnedEditText", "Search update complete")
+
+        } catch (e: Exception) {
+            Logger.e("PinnedEditText", "Search failed", e)
+            e.printStackTrace()
+        }
+    }
+
+    private fun scrollToOffset(offset: Int) {
+        val layout = layout ?: return
+        val line = layout.getLineForOffset(offset)
+        // Calculate the vertical position of this line
+        val y = layout.getLineTop(line)
+        // scrollTo(x, y) will scroll the text so that the given y-coordinate is at the top.
+        scrollTo(scrollX, y)
+    }
+
+
+    fun nextSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+            post { scrollToOffset(range.first) }
+        }
+    }
+
+    override fun bringPointIntoView(offset: Int): Boolean {
+        return false
+    }
+
+
+    fun previousSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex =
+                if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+            post { scrollToOffset(range.first) }
+        }
+    }
+
+    override fun onSaveInstanceState(): Parcelable? {
+        val superState = super.onSaveInstanceState()
+        val ss = SavedState(superState)
+        ss.pinnedStart = pinnedStart ?: -1
+        ss.pinnedEnd = pinnedEnd ?: -1
+        return ss
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable?) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+        super.onRestoreInstanceState(state.superState)
+        pinnedStart = if (state.pinnedStart != -1) state.pinnedStart else null
+        pinnedEnd = if (state.pinnedEnd != -1) state.pinnedEnd else null
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(pinnedStart!!, pinnedEnd!!)
+        }
+        invalidate()
+    }
+
+    internal class SavedState : BaseSavedState {
+        var pinnedStart: Int = -1
+        var pinnedEnd: Int = -1
+
+        constructor(superState: Parcelable?) : super(superState)
+        private constructor(parcel: Parcel) : super(parcel) {
+            pinnedStart = parcel.readInt()
+            pinnedEnd = parcel.readInt()
+        }
+
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeInt(pinnedStart)
+            out.writeInt(pinnedEnd)
+        }
+
+        companion object CREATOR : Parcelable.Creator<SavedState> {
+            override fun createFromParcel(parcel: Parcel): SavedState {
+                return SavedState(parcel)
+            }
+
+            override fun newArray(size: Int): Array<SavedState?> {
+                return arrayOfNulls(size)
+            }
+        }
+    }
+
+}
+
+
+
+
+# java/com/example/textselector/Logger.kt
+package com.example.textselector
+
+import android.util.Log
+
+object Logger {
+    private const val DEBUG = false
+
+    fun d(tag: String, message: String) {
+        if (DEBUG) {
+            Log.d(tag, message)
+        }
+    }
+
+    fun e(tag: String, message: String, throwable: Throwable? = null) {
+        if (DEBUG) {
+            Log.e(tag, message, throwable)
+        }
+    }
+
+    fun w(tag: String, message: String) {
+        if (DEBUG) {
+            Log.w(tag, message)
+        }
+    }
+
+    fun i(tag: String, message: String) {
+        if (DEBUG) {
+            Log.i(tag, message)
+        }
+    }
+}
+
+
+
+# java/com/example/textselector/MainActivity.kt
+package com.example.textselector
+
+import android.content.Context
+import android.content.res.Configuration
+import android.os.Bundle
+import android.text.Html
+import android.util.Log
+import android.view.Menu
+import android.view.MenuItem
+import android.view.MotionEvent
+import android.view.View
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.widget.doAfterTextChanged
+import androidx.lifecycle.lifecycleScope
+import com.example.textselector.databinding.ActivityMainBinding
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+import com.google.android.material.button.MaterialButton
+import com.google.android.material.textfield.TextInputEditText
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.appcompat.widget.SearchView
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import android.view.animation.AccelerateDecelerateInterpolator
+import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputMethodManager
+import android.widget.EditText
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import com.google.android.material.bottomsheet.BottomSheetBehavior
+import kotlin.math.abs
+
+class MainActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityMainBinding
+    private var searchView: SearchView? = null
+    private var searchMenuItem: MenuItem? = null
+    private lateinit var db: TextSelectorDatabase
+    private var wasSearchExpanded = false
+    private var savedSearchQuery: String? = null
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // The system loads the correct layout automatically.
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
+        outState.putString("savedSearchQuery", searchView?.query?.toString())
+    }
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+        val isDarkMode = prefs.getBoolean("isDarkMode", false)
+        if (isDarkMode) {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
+        } else {
+            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
+        }
+
+        super.onCreate(savedInstanceState)
+
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+        insetsController.isAppearanceLightStatusBars = !isDarkMode
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        if (savedInstanceState != null) {
+            wasSearchExpanded = savedInstanceState.getBoolean("wasSearchExpanded", false)
+            savedSearchQuery = savedInstanceState.getString("savedSearchQuery")
+        }
+
+        // Initialize the Room database.
+        db = TextSelectorDatabase.getDatabase(this)
+
+        binding.saveFab.setOnTouchListener(object : View.OnTouchListener {
+            var dX = 0f
+            var dY = 0f
+            var downRawX = 0f
+            var downRawY = 0f
+            val CLICK_DRAG_TOLERANCE = 10  // in pixels
+            override fun onTouch(v: View, event: MotionEvent): Boolean {
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downRawX = event.rawX
+                        downRawY = event.rawY
+                        dX = v.x - event.rawX
+                        dY = v.y - event.rawY
+                        return true
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
+                        return true
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        val upRawX = event.rawX
+                        val upRawY = event.rawY
+                        if (abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
+                            abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
+                        ) {
+                            v.performClick()
+                        }
+                        return true
+                    }
+
+                    else -> return false
+                }
+            }
+        })
+
+        binding.pinnedEditText.selectionChangeListener = { start, end ->
+            binding.saveFab.visibility = if (end - start > 0) View.VISIBLE else View.GONE
+        }
+
+        binding.pinnedEditText.onSearchCleared = {
+            binding.searchNavigation.visibility = View.GONE
+            binding.txtSearchCount.text = ""
+            if (binding.pinnedEditText.isPinActive()) {
+                binding.bottomBanner.visibility = View.VISIBLE
+                binding.tvBannerInfo.text = getString(R.string.pin_active)
+            } else {
+                binding.bottomBanner.visibility = View.GONE
+                binding.tvBannerInfo.text = ""
+            }
+            searchView?.setQuery("", false)
+            searchView?.clearFocus()
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+            imm.hideSoftInputFromWindow(binding.pinnedEditText.windowToken, 0)
+            searchMenuItem?.collapseActionView()
+        }
+
+        if (binding.pinnedEditText.text.isNullOrEmpty()) {
+            binding.pinnedEditText.setText("")
+        }
+
+        setupToolbar()
+        setupTextArea()
+        setupSaveButton()
+        setupSearchNavigation()
+
+        // Handle SEND intent if present.
+        if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
+            intent.getStringExtra("android.intent.extra.TEXT")?.let {
+                binding.pinnedEditText.setText(it)
+            }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            // Get the inset from the keyboard (IME)
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+
+            view.setPadding(
+                navInsets.left,
+                view.paddingTop,
+                navInsets.right,
+                navInsets.bottom
+            )
+            // Translate your FAB and search navigation upward by the keyboard’s height.
+            binding.saveFab.translationY = -imeInsets.bottom.toFloat()
+            binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
+            // Always return the insets so that child views can also use them.
+            insets
+        }
+
+        binding.pinnedEditText.setOnEditorActionListener { v, actionId, event ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                binding.pinnedEditText.nextSearchResult()
+                updateSearchNavigation()
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        searchMenuItem = menu.findItem(R.id.action_search)
+        searchView = searchMenuItem?.actionView as? SearchView
+        searchView?.apply {
+            setIconifiedByDefault(true)
+            queryHint = getString(R.string.search_term)
+            setOnSearchClickListener {
+                requestFocus()
+                requestFocusFromTouch()
+            }
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean = true
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    binding.pinnedEditText.updateSearch(newText.orEmpty())
+                    val resultCount = binding.pinnedEditText.getSearchResultsCount()
+                    binding.searchNavigation.visibility =
+                        if (resultCount > 0) View.VISIBLE else View.GONE
+                    if (resultCount > 0) updateSearchNavigation()
+                    return true
+                }
+            })
+        }
+
+        if (wasSearchExpanded) {
+            searchMenuItem?.expandActionView()
+            searchView?.setQuery(savedSearchQuery, false)
+        }
+
+        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                searchView?.requestFocusFromTouch()
+                return true
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
+                return true
+            }
+        })
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_library -> {
+                showSavedSelections()
+                return true
+            }
+
+            R.id.action_toggle_theme -> {
+                toggleTheme()
+                return true
+            }
+
+            else -> return super.onOptionsItemSelected(item)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updatePinBanner()
+    }
+
+    private fun updatePinBanner() {
+        if (binding.pinnedEditText.isPinActive()) {
+            binding.bottomBanner.visibility = View.VISIBLE
+            binding.tvBannerInfo.text = getString(R.string.pin_active)
+        } else {
+            binding.bottomBanner.visibility = View.GONE
+            binding.tvBannerInfo.text = ""
+        }
+    }
+
+    // Toggle dark/light mode and store the new preference.
+    private fun toggleTheme() {
+        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+        val isDarkMode = prefs.getBoolean("isDarkMode", false)
+        val newMode =
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
+        prefs.edit().putBoolean("isDarkMode", !isDarkMode).apply()
+        AppCompatDelegate.setDefaultNightMode(newMode)
+        // Recreate the activity so the theme change takes effect immediately.
+        recreate()
+    }
+
+    private fun setupToolbar() {
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        val toolbarTitle = binding.toolbar.findViewById<TextView>(R.id.toolbarTitle)
+
+        val aboutMessage = """
+        <div style="font-family: 'Segoe UI', Roboto, -apple-system, sans-serif; max-width: 600px; margin: 2em auto; padding: 2em; background: #ffffff; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+            <h1 style="color: #666666; margin: 0 0 1em 0; font-weight: normal;">Tobias Fankhauser</h1>
+            
+            <div style="display: flex; flex-direction: column; gap: 1em;">
+                <a href="https://github.com/TobiFank" style="color: #f0a500; text-decoration: none;">GitHub</a>
+                <a href="https://www.linkedin.com/in/tobias-fankhauser" style="color: #f0a500; text-decoration: none;">LinkedIn</a>
+                <a href="https://buymeacoffee.com/TobiFank" style="color: #f0a500; text-decoration: none;">Buy me a coffee</a>
+            </div>
+    
+            <p style="color: #666666; margin-top: 2em;">Thank you for exploring my work! I welcome your feedback and bug reports to help make this app even better. Have a great day!</p>
+        </div>
+        """.trimIndent()
+
+        toolbarTitle.setOnClickListener {
+            MaterialAlertDialogBuilder(this)
+                .setTitle("About")
+                .setMessage(Html.fromHtml(aboutMessage, Html.FROM_HTML_MODE_LEGACY))
+                .setPositiveButton("OK", null)
+                .show()
+        }
+
+        binding.toolbar.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.action_library -> {
+                    showSavedSelections()
+                    true
+                }
+
+                R.id.action_toggle_theme -> {
+                    toggleTheme()
+                    true
+                }
+
+                else -> false
+            }
+        }
+    }
+
+    private fun setupTextArea() {
+        binding.pinnedEditText.doAfterTextChanged { text ->
+            binding.saveFab.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun setupSaveButton() {
+        binding.saveFab.apply {
+            visibility = View.GONE
+            setOnClickListener {
+                animateSaveButton {
+                    showSaveBottomSheet()
+                }
+            }
+        }
+    }
+
+    private fun animateSaveButton(onAnimationEnd: () -> Unit) {
+        binding.saveFab.animate()
+            .scaleX(0.8f)
+            .scaleY(0.8f)
+            .setDuration(100)
+            .setInterpolator(AccelerateDecelerateInterpolator())
+            .withEndAction {
+                binding.saveFab.animate()
+                    .scaleX(1f)
+                    .scaleY(1f)
+                    .setDuration(100)
+                    .setInterpolator(AccelerateDecelerateInterpolator())
+                    .withEndAction(onAnimationEnd)
+                    .start()
+            }
+            .start()
+    }
+
+    private fun showSaveBottomSheet() {
+        val selectedText = binding.pinnedEditText.text?.substring(
+            binding.pinnedEditText.selectionStart,
+            binding.pinnedEditText.selectionEnd
+        ) ?: return
+
+        val bottomSheetDialog = BottomSheetDialog(this)
+        val bottomSheetView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        bottomSheetDialog.setContentView(bottomSheetView)
+
+        val nameInput = bottomSheetView.findViewById<TextInputEditText>(R.id.nameInput)
+        val previewText = bottomSheetView.findViewById<TextView>(R.id.previewText)
+        val saveButton = bottomSheetView.findViewById<MaterialButton>(R.id.saveButton)
+        val cancelButton = bottomSheetView.findViewById<MaterialButton>(R.id.cancelButton)
+
+        val defaultName = selectedText.take(50).replace("\n", " ")
+            .split(" ").take(5).joinToString(" ")
+        nameInput.setText(defaultName)
+        previewText.text = selectedText
+
+        saveButton.setOnClickListener {
+            val name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: defaultName
+            val selection = SavedSelection(name = name, text = selectedText)
+            saveSelection(selection)
+            bottomSheetDialog.dismiss()
+            showSuccessSnackbar("Selection saved")
+        }
+        cancelButton.setOnClickListener { bottomSheetDialog.dismiss() }
+
+        bottomSheetDialog.show()
+
+        // Force the bottom sheet to expand fully
+        val bottomSheet =
+            bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+        bottomSheet?.let {
+            BottomSheetBehavior.from(it).state = BottomSheetBehavior.STATE_EXPANDED
+        }
+    }
+
+
+    private fun showSavedSelections() {
+        lifecycleScope.launch {
+            val selections = withContext(Dispatchers.IO) {
+                db.savedSelectionDao().getAll()
+            }
+            val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
+            val recyclerView =
+                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
+            recyclerView.layoutManager = LinearLayoutManager(this@MainActivity)
+            val dialog = MaterialAlertDialogBuilder(this@MainActivity)
+                .setView(dialogView)
+                .create()
+            var adapter: SavedSelectionsAdapter? = null
+            adapter = SavedSelectionsAdapter(
+                selections = selections,
+                onItemClick = { selection ->
+                    binding.pinnedEditText.clearSelectionPins()
+                    binding.pinnedEditText.clearSearchHighlights()
+                    binding.pinnedEditText.setText(selection.text)
+                    dialog.dismiss()
+                },
+                onDeleteClick = { selection ->
+                    showDeleteConfirmationDialog(selection) {
+                        lifecycleScope.launch {
+                            val updatedSelections = withContext(Dispatchers.IO) {
+                                db.savedSelectionDao().getAll()
+                            }
+                            adapter?.updateSelections(updatedSelections)
+                        }
+                    }
+                },
+                onEditClick = { selection ->
+                    showEditDialog(selection) {
+                        lifecycleScope.launch {
+                            val updatedSelections = withContext(Dispatchers.IO) {
+                                db.savedSelectionDao().getAll()
+                            }
+                            adapter?.updateSelections(updatedSelections)
+                        }
+                    }
+                }
+            )
+            recyclerView.adapter = adapter
+            dialog.show()
+        }
+    }
+
+    private fun setupSearchNavigation() {
+        val btnPrev = binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev)
+        val btnNext = binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext)
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev).setOnClickListener {
+            binding.pinnedEditText.previousSearchResult()
+            updateSearchNavigation()
+        }
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext).setOnClickListener {
+            binding.pinnedEditText.nextSearchResult()
+            updateSearchNavigation()
+        }
+        btnPrev.setOnClickListener {
+            binding.pinnedEditText.previousSearchResult()
+            updateSearchNavigation()
+        }
+        btnNext.setOnClickListener {
+            binding.pinnedEditText.nextSearchResult()
+            updateSearchNavigation()
+        }
+    }
+
+    private fun updateSearchNavigation() {
+        val resultCount = binding.pinnedEditText.getSearchResultsCount()
+        if (resultCount > 0) {
+            val current = binding.pinnedEditText.getCurrentSearchIndex()
+            binding.txtSearchCount.text = "$current/$resultCount"
+        } else {
+            binding.txtSearchCount.text = ""
+        }
+    }
+
+    private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Delete Selection")
+            .setMessage("Are you sure you want to delete '${selection.name}'?")
+            .setPositiveButton("Delete") { _, _ ->
+                deleteSelection(selection)
+                onDeleted()
+                showSuccessSnackbar("Selection deleted")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
+        val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        dialogView.findViewById<MaterialButton>(R.id.cancelButton).visibility = View.GONE
+        dialogView.findViewById<MaterialButton>(R.id.saveButton).visibility = View.GONE
+        val nameInput = dialogView.findViewById<EditText>(R.id.nameInput)
+        nameInput.setText(selection.name)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Edit Selection")
+            .setView(dialogView)
+            .setPositiveButton("Save") { _, _ ->
+                val updatedSelection = selection.copy(
+                    name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: selection.name
+                )
+                updateSelection(updatedSelection)
+                onEdited()
+                showSuccessSnackbar("Selection updated")
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showSuccessSnackbar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)
+            .setBackgroundTint(getColor(R.color.gold_primary))
+            .setTextColor(getColor(R.color.light_text_primary))
+            .show()
+    }
+
+    private fun saveSelection(selection: SavedSelection) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            db.savedSelectionDao().insert(selection)
+        }
+    }
+
+    private fun updateSelection(selection: SavedSelection) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            db.savedSelectionDao().update(selection)
+        }
+    }
+
+    private fun deleteSelection(selection: SavedSelection) {
+        lifecycleScope.launch(Dispatchers.IO) {
+            db.savedSelectionDao().delete(selection)
+        }
+    }
+}
+
+
+
+
+# res/values/styles.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Text Appearances -->
+    <style name="TextAppearance.MetallicGold.Title" parent="TextAppearance.MaterialComponents.Headline6">
+        <item name="android:textColor">@color/gold_primary</item>
+        <item name="android:textSize">24sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.0125</item>
+    </style>
+
+    <style name="TextAppearance.MetallicGold.Subtitle" parent="TextAppearance.MaterialComponents.Subtitle1">
+        <item name="android:textColor">@color/gold_primary</item>
+        <item name="android:textSize">18sp</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:letterSpacing">0.00625</item>
+    </style>
+
+    <!-- Button Styles -->
+    <style name="Widget.TextSelector.Button.MetallicGold" parent="Widget.MaterialComponents.Button">
+        <item name="backgroundTint">@color/gold_primary</item>
+        <item name="rippleColor">@color/gold_shine</item>
+        <item name="android:textColor">?attr/colorOnPrimary</item>
+        <item name="android:letterSpacing">0.0125</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="elevation">4dp</item>
+    </style>
+
+    <style name="Widget.TextSelector.Button.IconOnly.RoseGold" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="iconTint">@color/rose_gold_primary</item>
+        <item name="strokeColor">@color/rose_gold_primary</item>
+        <item name="rippleColor">@color/rose_gold_light</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:padding">12dp</item>
+    </style>
+
+    <style name="Widget.TextSelector.Button.IconOnly.WhiteGold" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="iconTint">@color/white_gold_primary</item>
+        <item name="strokeColor">@color/white_gold_primary</item>
+        <item name="rippleColor">@color/white_gold_light</item>
+        <item name="cornerRadius">24dp</item>
+        <item name="android:insetLeft">0dp</item>
+        <item name="android:insetTop">0dp</item>
+        <item name="android:insetRight">0dp</item>
+        <item name="android:insetBottom">0dp</item>
+        <item name="android:padding">12dp</item>
+    </style>
+
+    <style name="Widget.TextSelector.Button.TextButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">?android:textColorPrimary</item>
+        <item name="rippleColor">?android:textColorSecondary</item>
+    </style>
+
+    <!-- FAB Style -->
+    <style name="Widget.TextSelector.FloatingActionButton" parent="Widget.MaterialComponents.FloatingActionButton">
+        <item name="backgroundTint">@color/gold_primary</item>
+        <item name="tint">?attr/colorOnPrimary</item>
+        <item name="rippleColor">@color/gold_shine</item>
+        <item name="elevation">6dp</item>
+    </style>
+
+    <!-- Card Style -->
+    <style name="Widget.TextSelector.Card" parent="Widget.MaterialComponents.CardView">
+        <item name="cardElevation">2dp</item>
+        <item name="cardCornerRadius">12dp</item>
+        <item name="strokeColor">@color/gold_primary</item>
+        <item name="strokeWidth">1dp</item>
+    </style>
+</resources>
+
+
+
+# res/values/colors.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Metallic Gold Palette -->
+    <color name="gold_highlight">#E2D6A4</color>
+    <color name="gold_shine">#DECB7E</color>
+    <color name="gold_light">#D0BD49</color>
+    <color name="gold_primary">#C09B23</color>
+    <color name="gold_shadow">#B3901C</color>
+    <color name="gold_dark">#A88917</color>
+    <color name="gold_darkest">#9B8014</color>
+
+    <!-- Rose Gold (for delete) -->
+    <color name="rose_gold_highlight">#E6C5C5</color>
+    <color name="rose_gold_shine">#D4A5A5</color>
+    <color name="rose_gold_light">#C28585</color>
+    <color name="rose_gold_primary">#B06565</color>
+    <color name="rose_gold_shadow">#9E4545</color>
+    <color name="rose_gold_dark">#8C2525</color>
+
+    <!-- White Gold (for edit) -->
+    <color name="white_gold_highlight">#E6E8E6</color>
+    <color name="white_gold_shine">#D4D8D4</color>
+    <color name="white_gold_light">#C2C8C2</color>
+    <color name="white_gold_primary">#B0B8B0</color>
+    <color name="white_gold_shadow">#9EA89E</color>
+    <color name="white_gold_dark">#8C988C</color>
+
+    <!-- Light Theme Colors -->
+    <color name="light_background">#D7D7D7</color>
+    <color name="light_surface">#F0F0F0</color>
+    <color name="light_text_primary">#141414</color>
+    <color name="light_text_secondary">#2D2D2D</color>
+    <color name="light_text_tertiary">#4B4B4B</color>
+
+    <!-- Dark Theme Colors -->
+    <color name="dark_background">#282828</color>
+    <color name="dark_surface">#0F0F0F</color>
+    <color name="dark_text_primary">#EBEBEB</color>
+    <color name="dark_text_secondary">#D2D2D2</color>
+    <color name="dark_text_tertiary">#B4B4B4</color>
+
+    <!-- Search Highlight previously FFD700 -->
+    <color name="searchHighlight">#66FFD700</color>
+</resources>
+
+
+
+# res/values/themes.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base application theme -->
+    <style name="Theme.TextSelector" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorPrimaryVariant">@color/gold_dark</item>
+        <item name="colorOnPrimary">@color/light_text_primary</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/gold_light</item>
+        <item name="colorSecondaryVariant">@color/gold_shine</item>
+        <item name="colorOnSecondary">@color/light_text_primary</item>
+
+        <!-- Status bar and navigation -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+
+        <!-- Background colors -->
+        <item name="android:windowBackground">@color/light_background</item>
+        <item name="colorSurface">@color/light_surface</item>
+        <item name="colorOnSurface">@color/light_text_primary</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/light_text_primary</item>
+        <item name="android:textColorSecondary">@color/light_text_secondary</item>
+        <item name="android:textColorTertiary">@color/light_text_tertiary</item>
+
+        <!-- Custom attributes -->
+        <item name="metallic_gold_gradient">@drawable/gradient_metallic_gold</item>
+        <item name="metallic_rose_gold_gradient">@drawable/gradient_rose_gold</item>
+        <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
+
+        <!-- Text selection handle -->
+        <item name="android:textSelectHandle">@drawable/selection_handle</item>
+        <item name="android:textSelectHandleLeft">@drawable/selection_handle</item>
+        <item name="android:textSelectHandleRight">@drawable/selection_handle</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/black</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@color/gold_primary</item>
+    </style>
+
+    <!-- Dark theme -->
+    <style name="Theme.TextSelector.Dark" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Colors remain same as light theme -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorPrimaryVariant">@color/gold_dark</item>
+        <item name="colorOnPrimary">@color/dark_text_primary</item>
+
+        <!-- Background colors -->
+        <item name="android:windowBackground">@color/dark_background</item>
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/dark_text_primary</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/dark_text_primary</item>
+        <item name="android:textColorSecondary">@color/dark_text_secondary</item>
+        <item name="android:textColorTertiary">@color/dark_text_tertiary</item>
+
+        <!-- Status bar and navigation -->
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@color/gold_primary</item>
+    </style>
+</resources>
+
+
+
+# res/values/attrs.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="TextSelector">
+        <!-- Custom gradient drawables -->
+        <attr name="metallic_gold_gradient" format="reference" />
+        <attr name="metallic_rose_gold_gradient" format="reference" />
+        <attr name="metallic_white_gold_gradient" format="reference" />
+    </declare-styleable>
+    <attr name="toggleOuterColor" format="color"/>
+    <attr name="toggleInnerColor" format="color"/>
+    <attr name="iconColor" format="color"/>
+</resources>
+
+
+
+# res/values/strings.xml
+<resources>
+    <string name="app_name">textSelector</string>
+    <string name="pin_start">Pin Start</string>
+    <string name="pin_end">Pin End</string>
+    <string name="load">Load</string>
+    <string name="save">Save</string>
+    <string name="search">Search</string>
+    <string name="search_term">Search term</string>
+    <string name="paste">Paste</string>
+    <string name="selection_name">Selection Name</string>
+    <string name="save_selection">Save Selection</string>
+    <string name="preview">Preview</string>
+    <string name="cancel">Cancel</string>
+    <string name="library">Library</string>
+    <string name="saved_selections">Saved Selections</string>
+    <string name="previous_result">Previous result</string>
+    <string name="next_result">Next result</string>
+    <string name="pin_active">PIN ACTIVE</string>
+    <string name="toggle_theme">Toggle Theme</string>
+    <string name="saved_selections_header">Your Saved Text Selections</string>
+    <string name="hint_paste_text">Paste your text here</string>
+    <string name="empty_counter">0/0</string>
+</resources>
+
+
+
+# res/layout-land/activity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <!-- AppBarLayout with proper inset handling -->
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        android:fitsSystemWindows="true"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:background="@android:color/transparent"
+            android:paddingTop="8dp"
+            app:menu="@menu/menu_main"
+            app:navigationIconTint="@color/gold_primary"
+            app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+            app:title="">
+
+            <TextView
+                android:id="@+id/toolbarTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start"
+                android:clickable="true"
+                android:focusable="true"
+                android:text="@string/app_name"
+                android:textAppearance="@style/TextAppearance.MetallicGold.Title" />
+        </com.google.android.material.appbar.MaterialToolbar>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- Main text area -->
+    <com.example.textselector.PinnedEditText
+        android:id="@+id/pinnedEditText"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:gravity="top"
+        android:hint="@string/hint_paste_text"
+        android:imeOptions="flagNoExtractUi"
+        android:inputType="textMultiLine"
+        android:padding="16dp"
+        android:textSize="16sp"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+
+    <!-- Floating Action Button -->
+    <com.example.textselector.CustomFloatingActionButton
+        android:id="@+id/saveFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="70dp"
+        android:contentDescription="@string/save"
+        android:src="@drawable/ic_save"
+        app:backgroundTint="@color/gold_primary"
+        app:tint="?attr/colorOnPrimary" />
+
+    <!-- Search navigation controls -->
+    <LinearLayout
+        android:id="@+id/searchNavigation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:background="@drawable/search_nav_background"
+        android:elevation="10dp"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnPrev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/previous_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_up" />
+
+        <TextView
+            android:id="@+id/txtSearchCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="@string/empty_counter"
+            android:textColor="@color/light_text_primary" />
+
+        <ImageButton
+            android:id="@+id/btnNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/next_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_down" />
+    </LinearLayout>
+
+    <!-- Bottom banner -->
+    <LinearLayout
+        android:id="@+id/bottomBanner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_gravity="bottom"
+        android:background="@android:color/transparent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvBannerInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/pin_active"
+            android:textColor="@color/gold_primary"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+
+
+# res/layout/dialog_saved_selections.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical">
+
+    <TextView
+        android:id="@+id/headerText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp"
+        android:text="Your Saved Text Selections"
+        android:textAppearance="@style/TextAppearance.MetallicGold.Title"
+        android:gravity="center" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/savedSelectionsRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="8dp"
+        android:clipToPadding="false"/>
+
+</LinearLayout>
+
+
+
+# res/layout/dialog_save_selection.xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:title="@string/saved_selections"
+            app:titleTextAppearance="@style/TextAppearance.MetallicGold.Title"
+            android:background="@android:color/transparent"/>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/savedSelectionsRecyclerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:padding="8dp"
+        android:clipToPadding="false"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior"/>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+
+
+# res/layout/item_saved_selection.xml
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="8dp"
+    android:layout_marginVertical="4dp"
+    app:cardElevation="2dp"
+    app:strokeColor="@color/gold_primary"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/selectionTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@id/editButton"
+                android:textAppearance="@style/TextAppearance.MetallicGold.Subtitle"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/editButton"
+                style="@style/Widget.TextSelector.Button.IconOnly.WhiteGold"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_toStartOf="@id/deleteButton"
+                app:icon="@drawable/ic_edit"/>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/deleteButton"
+                style="@style/Widget.TextSelector.Button.IconOnly.RoseGold"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_alignParentEnd="true"
+                app:icon="@drawable/ic_delete"/>
+
+        </RelativeLayout>
+
+        <TextView
+            android:id="@+id/timestamp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:textAppearance="?attr/textAppearanceCaption"
+            android:textColor="?android:textColorSecondary"/>
+
+        <TextView
+            android:id="@+id/previewText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="3"
+            android:textAppearance="?attr/textAppearanceBody2"/>
+
+    </LinearLayout>
+</com.google.android.material.card.MaterialCardView>
+
+
+
+
+# res/layout/popup_pin_options.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    style="?android:attr/buttonBarStyle"
+    android:orientation="horizontal"
+    android:padding="8dp"
+    android:background="@android:color/white"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content">
+
+    <Button
+        android:id="@+id/buttonOption1"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="" />
+
+    <Button
+        android:id="@+id/buttonOption2"
+        style="?android:attr/buttonBarButtonStyle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:layout_marginStart="8dp"/>
+</LinearLayout>
+
+
+
+
+# res/layout/pin_marker.xml
+<?xml version="1.0" encoding="utf-8"?>
+<View
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="2dp"
+    android:layout_height="match_parent"
+    android:background="@drawable/gradient_metallic_gold"/>
+
+
+
+# res/layout/activity_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fitsSystemWindows="true">
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            android:layout_marginTop="24dp"
+            android:background="@android:color/transparent"
+            app:menu="@menu/menu_main"
+            app:title="">
+
+            <TextView
+                android:id="@+id/toolbarTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start"
+                android:clickable="true"
+                android:focusable="true"
+                android:text="@string/app_name"
+                android:textAppearance="@style/TextAppearance.MetallicGold.Title" />
+        </com.google.android.material.appbar.MaterialToolbar>
+
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- The main text area with extract mode disabled -->
+    <androidx.core.widget.NestedScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fillViewport="true"
+        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+
+        <com.example.textselector.PinnedEditText
+            android:id="@+id/pinnedEditText"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="top"
+            android:hint="@string/hint_paste_text"
+            android:imeOptions="actionSearch|flagNoExtractUi"
+            android:inputType="textMultiLine"
+            android:padding="16dp"
+            android:textSize="16sp"
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
+    </androidx.core.widget.NestedScrollView>
+
+    <com.example.textselector.CustomFloatingActionButton
+        android:id="@+id/saveFab"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="70dp"
+        android:contentDescription="@string/save"
+        android:src="@drawable/ic_save"
+        app:backgroundTint="@color/gold_primary"
+        app:tint="?attr/colorOnPrimary" />
+
+    <LinearLayout
+        android:id="@+id/searchNavigation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:background="@drawable/search_nav_background"
+        android:elevation="10dp"
+        android:orientation="horizontal"
+        android:padding="8dp"
+        android:visibility="gone">
+
+        <ImageButton
+            android:id="@+id/btnPrev"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/previous_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_up" />
+
+        <TextView
+            android:id="@+id/txtSearchCount"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:text="@string/empty_counter"
+            android:textColor="@color/gold_primary" />
+
+        <ImageButton
+            android:id="@+id/btnNext"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/next_result"
+            android:minWidth="48dp"
+            android:minHeight="48dp"
+            android:padding="8dp"
+            android:src="@drawable/ic_arrow_down" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/bottomBanner"
+        android:layout_width="match_parent"
+        android:layout_height="96dp"
+        android:layout_gravity="bottom"
+        android:background="@android:color/transparent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="16dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/tvBannerInfo"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="24dp"
+            android:text="@string/pin_active"
+            android:textColor="@color/gold_primary"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+</androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+
+
+
+# res/layout/bottom_sheet_save.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/save_selection"
+        android:textAppearance="@style/TextAppearance.MetallicGold.Title"
+        android:layout_marginBottom="16dp"/>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/nameInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/selection_name"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/nameInput"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1"/>
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/preview"
+        android:textAppearance="?attr/textAppearanceSubtitle1"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/previewText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:maxLines="5"
+        android:ellipsize="end"
+        android:textAppearance="?attr/textAppearanceBody2"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="16dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/cancelButton"
+            style="@style/Widget.TextSelector.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancel"/>
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1"/>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/saveButton"
+            style="@style/Widget.TextSelector.Button.MetallicGold"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/save"/>
+
+    </LinearLayout>
+</LinearLayout>
+
+
+
+# res/drawable/ic_arrow_up.xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,8L6,14h12L12,8z"/>
+</vector>
+
+
+
+
+# res/drawable/ic_edit.xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M3,17.25V21h3.75L17.81,9.94l-3.75,-3.75L3,17.25zM20.71,7.04c0.39,-0.39 0.39,-1.02 0,-1.41l-2.34,-2.34c-0.39,-0.39 -1.02,-0.39 -1.41,0l-1.83,1.83 3.75,3.75 1.83,-1.83z"/>
+</vector>
+
+
+
+# res/drawable/ic_launcher_background.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+  <group android:scaleX="0.69"
+      android:scaleY="0.69"
+      android:translateX="16.74"
+      android:translateY="16.74">
+      <path android:fillColor="#3DDC84"
+            android:pathData="M0,0h108v108h-108z"/>
+      <path android:fillColor="#00000000" android:pathData="M9,0L9,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,0L19,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M29,0L29,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M39,0L39,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M49,0L49,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M59,0L59,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M69,0L69,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M79,0L79,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M89,0L89,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M99,0L99,108"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,9L108,9"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,19L108,19"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,29L108,29"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,39L108,39"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,49L108,49"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,59L108,59"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,69L108,69"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,79L108,79"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,89L108,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M0,99L108,99"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,29L89,29"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,39L89,39"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,49L89,49"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,59L89,59"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,69L89,69"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M19,79L89,79"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M29,19L29,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M39,19L39,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M49,19L49,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M59,19L59,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M69,19L69,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+      <path android:fillColor="#00000000" android:pathData="M79,19L79,89"
+            android:strokeColor="#33FFFFFF" android:strokeWidth="0.8"/>
+  </group>
+</vector>
+
+
+
+
+# res/drawable/ic_save.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M17,3L5,3c-1.11,0 -2,0.9 -2,2v14c0,1.1 0.89,2 2,2h14c1.1,0 2,-0.9 2,-2L21,7l-4,-4zM12,19c-1.66,0 -3,-1.34 -3,-3s1.34,-3 3,-3 3,1.34 3,3 -1.34,3 -3,3zM15,9L5,9L5,5h10v4z"/>
+</vector>
+
+
+
+# res/drawable/ic_launcher_foreground.xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="85.84757"
+                android:endY="92.4963"
+                android:startX="42.9492"
+                android:startY="49.59793"
+                android:type="linear">
+                <item
+                    android:color="#44000000"
+                    android:offset="0.0" />
+                <item
+                    android:color="#00000000"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="nonZero"
+        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
+        android:strokeWidth="1"
+        android:strokeColor="#00000000" />
+</vector>
+
+
+
+# res/drawable/ic_library.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="@color/gold_primary"
+        android:pathData="M4,6L2,6v14c0,1.1 0.9,2 2,2h14v-2L4,20L4,6zM20,2L8,2c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2L22,4c0,-1.1 -0.9,-2 -2,-2zM20,16L8,16L8,4h12v12zM10,9h8v2h-8zM10,12h4v2h-4zM10,6h8v2h-8z"/>
+</vector>
+
+
+
+# res/drawable/gradient_white_gold.xml
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:type="linear"
+                android:startColor="@color/white_gold_highlight"
+                android:centerColor="@color/white_gold_primary"
+                android:endColor="@color/white_gold_dark"/>
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="45"
+                android:type="linear"
+                android:startColor="#33FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"/>
+        </shape>
+    </item>
+</layer-list>
+
+
+
+# res/drawable/search_nav_background.xml
+<shape xmlns:android="http://schemas.android.com/apk/res/android">
+    <solid android:color="#AA000000"/> <!-- semi-transparent black -->
+    <corners android:radius="4dp"/>
+</shape>
+
+
+
+
+# res/drawable/selection_handle.xml
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <size android:width="24dp" android:height="24dp"/>
+            <gradient
+                android:type="linear"
+                android:angle="135"
+                android:startColor="@color/gold_highlight"
+                android:centerColor="@color/gold_primary"
+                android:endColor="@color/gold_dark"/>
+        </shape>
+    </item>
+</layer-list>
+
+
+
+# res/drawable/gradient_metallic_gold.xml
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:type="linear"
+                android:startColor="@color/gold_highlight"
+                android:centerColor="@color/gold_primary"
+                android:endColor="@color/gold_dark"/>
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="45"
+                android:type="linear"
+                android:startColor="#33FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"/>
+        </shape>
+    </item>
+</layer-list>
+
+
+
+# res/drawable/ic_delete.xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#000000"
+        android:pathData="M6,19c0,1.1 0.9,2 2,2h8c1.1,0 2,-0.9 2,-2V7H6v12zM19,4h-3.5l-1,-1h-5l-1,1H5v2h14V4z"/>
+</vector>
+
+
+
+# res/drawable/gradient_rose_gold.xml
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:type="linear"
+                android:startColor="@color/rose_gold_highlight"
+                android:centerColor="@color/rose_gold_primary"
+                android:endColor="@color/rose_gold_dark"/>
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="45"
+                android:type="linear"
+                android:startColor="#33FFFFFF"
+                android:centerColor="#00FFFFFF"
+                android:endColor="#00FFFFFF"/>
+        </shape>
+    </item>
+</layer-list>
+
+
+
+# res/drawable/ic_toggle_theme.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <!-- Outer circle -->
+    <path
+        android:fillColor="?attr/toggleOuterColor"
+        android:pathData="M12,2a10,10 0 1,0 10,10A10,10 0 0,0 12,2z"/>
+    <!-- Inner crescent -->
+    <path
+        android:fillColor="?attr/toggleInnerColor"
+        android:pathData="M12,4a8,8 0 0,0 0,16c4.42,0 8,-3.58 8,-8 0,-1.67 -0.52,-3.21 -1.4,-4.5A6.997,6.997 0 0,1 12,4z"/>
+</vector>
+
+
+
+
+# res/drawable/ic_search.xml
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:fillColor="?attr/iconColor"
+        android:pathData="M15.5,14h-0.79l-0.28,-0.27A6.471,6.471 0,0,0,16,9.5 6.5,6.5 0,1,0,9.5,16a6.471,6.471 0,0,0,4.23,-1.57l0.27,0.28v0.79l5,4.99L20.49,19l-4.99,-5zm-6,0C8.01,14,6,11.99,6,9.5 6,7.01,8.01,5,10.5,5 12.99,5,15,7.01,15,9.5 15,11.99,12.99,14,10.5,14z"/>
+</vector>
+
+
+
+
+# res/drawable/ic_arrow_down.xml
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp" android:height="24dp"
+    android:viewportWidth="24" android:viewportHeight="24">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,16l6,-6H6l6,6z"/>
+</vector>
+
+
+
+
+# res/values-night/themes.xml
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark theme -->
+    <style name="Theme.TextSelector" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Colors remain same as light theme for consistency -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorPrimaryVariant">@color/gold_dark</item>
+        <item name="colorOnPrimary">@color/dark_text_primary</item>
+
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/gold_light</item>
+        <item name="colorSecondaryVariant">@color/gold_shine</item>
+        <item name="colorOnSecondary">@color/dark_text_primary</item>
+
+        <!-- Background colors -->
+        <item name="android:windowBackground">@color/dark_background</item>
+        <item name="colorSurface">@color/dark_surface</item>
+        <item name="colorOnSurface">@color/dark_text_primary</item>
+
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/dark_text_primary</item>
+        <item name="android:textColorSecondary">@color/dark_text_secondary</item>
+        <item name="android:textColorTertiary">@color/dark_text_tertiary</item>
+
+        <!-- Status bar and navigation -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+
+        <!-- Custom attributes -->
+        <item name="metallic_gold_gradient">@drawable/gradient_metallic_gold</item>
+        <item name="metallic_rose_gold_gradient">@drawable/gradient_rose_gold</item>
+        <item name="metallic_white_gold_gradient">@drawable/gradient_white_gold</item>
+
+        <!-- Theme toggle icon -->
+        <item name="toggleOuterColor">@android:color/white</item>
+        <item name="toggleInnerColor">@color/gold_primary</item>
+
+        <!-- Icon color -->
+        <item name="iconColor">@color/gold_primary</item>
+    </style>
+</resources>
+
+
+
+# res/menu/custom_selection_menu.xml
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_pin_start"
+        android:title="@string/pin_start"
+        app:showAsAction="ifRoom" />
+    <item
+        android:id="@+id/action_pin_end"
+        android:title="@string/pin_end"
+        app:showAsAction="ifRoom" />
+</menu>
+
+
+
+
+# res/menu/menu_main.xml
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_search"
+        android:icon="@drawable/ic_search"
+        android:title="@string/search"
+        app:showAsAction="ifRoom|collapseActionView"
+        app:actionViewClass="androidx.appcompat.widget.SearchView" />
+    <item
+        android:id="@+id/action_library"
+        android:icon="@drawable/ic_library"
+        android:title="@string/library"
+        app:showAsAction="always" />
+    <item
+        android:id="@+id/action_toggle_theme"
+        android:icon="@drawable/ic_toggle_theme"
+        android:title="@string/toggle_theme"
+        app:showAsAction="ifRoom" />
+</menu>
+
+
+
+
