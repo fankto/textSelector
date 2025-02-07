@@ -1,6 +1,7 @@
 package com.example.textselector.ui
 
 import android.content.Context
+import android.graphics.Rect
 import android.os.Parcel
 import android.os.Parcelable
 import android.text.Editable
@@ -42,7 +43,13 @@ class PinnedEditText @JvmOverloads constructor(
     }
 
     override fun bringPointIntoView(offset: Int): Boolean {
-        return if (ignoreBringPointIntoView) false else super.bringPointIntoView(offset)
+        if (ignoreBringPointIntoView) return false
+        val layout = layout ?: return false
+        val line = layout.getLineForOffset(offset)
+        val rect = Rect()
+        layout.getLineBounds(line, rect)
+        rect.offset(totalPaddingLeft, totalPaddingTop)
+        return requestRectangleOnScreen(rect, true)
     }
 
     private val gestureDetector =
@@ -139,6 +146,7 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = 0
             val range = searchResults[0]
             setSelection(range.first, range.last + 1)
+            post { bringPointIntoView(range.first) }
         }
     }
 
@@ -157,17 +165,16 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            bringPointIntoView(range.first)
+            post { bringPointIntoView(range.first) }
         }
     }
 
     fun previousSearchResult() {
         if (searchResults.isNotEmpty()) {
-            currentSearchIndex =
-                if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            bringPointIntoView(range.first)
+            post { bringPointIntoView(range.first) }
         }
     }
 

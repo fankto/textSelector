@@ -111,7 +111,11 @@ class MainActivity : AppCompatActivity() {
         searchView?.apply {
             queryHint = getString(R.string.search_term)
             setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?) = true
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    binding.pinnedEditText.nextSearchResult()
+                    updateSearchNavigation()
+                    return true
+                }
                 override fun onQueryTextChange(newText: String?): Boolean {
                     binding.pinnedEditText.updateSearch(newText.orEmpty())
                     updateSearchNavigation()
@@ -198,8 +202,14 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateSearchNavigation(clear: Boolean = false) {
         val count = binding.pinnedEditText.getSearchResultsCount?.invoke() ?: 0
-        val current = binding.pinnedEditText.getCurrentSearchIndex?.invoke() ?: 0
-        binding.txtSearchCount?.text = if (count > 0) "$current / $count" else ""
+        if (count > 0) {
+            binding.searchNavigation.visibility = View.VISIBLE
+            val current = binding.pinnedEditText.getCurrentSearchIndex?.invoke() ?: 0
+            binding.txtSearchCount?.text = "$current / $count"
+        } else {
+            binding.searchNavigation.visibility = View.GONE
+            binding.txtSearchCount?.text = ""
+        }
     }
 
     private fun showSaveBottomSheet() {
