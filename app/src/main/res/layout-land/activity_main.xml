@@ -39,7 +39,7 @@
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Main text area -->
-    <com.example.textselector.PinnedEditText
+    <com.example.textselector.ui.PinnedEditText
         android:id="@+id/pinnedEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -50,19 +50,6 @@
         android:padding="16dp"
         android:textSize="16sp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
-
-    <!-- Floating Action Button -->
-    <com.example.textselector.CustomFloatingActionButton
-        android:id="@+id/saveFab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="70dp"
-        android:contentDescription="@string/save"
-        android:src="@drawable/ic_save"
-        app:backgroundTint="@color/gold_primary"
-        app:tint="?attr/colorOnPrimary" />
 
     <!-- Search navigation controls -->
     <LinearLayout

@@ -8,7 +8,10 @@ espressoCore = "3.5.1"
 appcompat = "1.6.1"
 material  = "1.10.0"
 room      = "2.6.1"
-ksp       = "1.9.0-1.0.13"  # Ensure this KSP version is compatible with your Kotlin version
+ksp       = "1.9.0-1.0.13"
+coroutines = "1.7.3"
+lifecycle = "2.6.2"
+activity = "1.8.1"
 
 [libraries]
 androidx-core-ktx     = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -20,6 +23,10 @@ material              = { group = "com.google.android.material", name = "materia
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx     = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler= { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+kotlinx-coroutines = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+androidx-lifecycle-viewmodel = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-ktx", version.ref = "lifecycle" }
+androidx-lifecycle-runtime = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-activity = { group = "androidx.activity", name = "activity-ktx", version.ref = "activity" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -20,4 +20,15 @@
     <string name="saved_selections_header">Your Saved Text Selections</string>
     <string name="hint_paste_text">Paste your text here</string>
     <string name="empty_counter">0/0</string>
+    <string name="selection_saved">Selection saved</string>
+    <string name="no_selections">No selections available</string>
+    <string name="delete_selection">Delete Selection</string>
+    <string name="delete_confirmation">Are you sure you want to delete %1$s?</string>
+    <string name="delete">Delete</string>
+    <string name="selection_deleted">Selection deleted</string>
+    <string name="dialog_edit_selection">Edit Selection</string>
+    <string name="edit_selection">Edit Selection</string>
+    <string name="selection_updated">Selection updated</string>
+    <string name="about">About</string>
+    <string name="ok">OK</string>
 </resources>
