@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.DialogInterface
 import android.os.Bundle
 import android.text.Html
+import android.text.method.LinkMovementMethod
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
@@ -372,14 +373,48 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAboutDialog() {
         val aboutHtml = """
-            <h1>Tobias Fankhauser</h1>
-            <p>Visit my <a href="https://github.com/TobiFank">GitHub</a> or <a href="https://www.linkedin.com/in/tobias-fankhauser">LinkedIn</a>.</p>
-            <p>Thank you for using this app!</p>
-        """.trimIndent()
-        MaterialAlertDialogBuilder(this)
+        <h1>textSelector</h1>        
+        <h3>About This App</h3>
+        <p>This app was created to bring desktop-like text selection functionality to Android. 
+        Having missed the convenience of shift-selection from desktop computers, I developed 
+        this solution using double-tap selection and search capabilities to make text selection 
+        easier and more precise on mobile devices.</p>
+        
+        <h3>Features</h3>
+        <ul>
+            <li>Double-tap text selection</li>
+            <li>Quick search functionality</li>
+            <li>Tripple-tap to dismiss selection</li>
+            <li>Precise start and end point selection</li>
+        </ul>
+        
+        <h3>Version</h3>
+        <p>1.0.0</p>
+        
+        <h3>Contact & Links</h3>
+        <p>Developer: Tobias Fankhauser</p>
+        <p>Visit my <a href="https://github.com/TobiFank">GitHub</a> for source code and updates.</p>
+        <p>Connect with me on <a href="https://www.linkedin.com/in/tobias-fankhauser">LinkedIn</a>.</p>
+        
+        <h3>Feedback</h3>
+        <p>Found a bug or have a suggestion? Please report it on GitHub or contact me through LinkedIn.</p>
+        
+        <p>Thank you for using textSelector!</p>
+    """.trimIndent()
+
+        val dialog = MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.about))
             .setMessage(Html.fromHtml(aboutHtml, Html.FROM_HTML_MODE_LEGACY))
             .setPositiveButton(getString(R.string.ok), null)
-            .show()
+            .create()
+
+        // Enable link clicking
+        dialog.show()
+        dialog.findViewById<TextView>(android.R.id.message)?.apply {
+            movementMethod = LinkMovementMethod.getInstance()
+            // Improve text appearance
+            textSize = 14f
+            setLineSpacing(0f, 1.2f)  // Add some line spacing for better readability
+        }
     }
 }
