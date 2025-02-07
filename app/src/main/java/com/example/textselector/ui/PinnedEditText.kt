@@ -30,6 +30,8 @@ class PinnedEditText @JvmOverloads constructor(
     private var searchResults: List<IntRange> = emptyList()
     private var currentSearchIndex = 0
 
+    private var ignoreBringPointIntoView = false
+
     var onPinChanged: (() -> Unit)? = null
     var onSearchCleared: (() -> Unit)? = null
     var selectionChangeListener: ((Int, Int) -> Unit)? = null
@@ -39,13 +41,18 @@ class PinnedEditText @JvmOverloads constructor(
         isLongClickable = false
     }
 
-    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            val offset = getOffsetForPosition(e.x, e.y)
-            handleDoubleTap(offset)
-            return true
-        }
-    })
+    override fun bringPointIntoView(offset: Int): Boolean {
+        return if (ignoreBringPointIntoView) false else super.bringPointIntoView(offset)
+    }
+
+    private val gestureDetector =
+        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                val offset = getOffsetForPosition(e.x, e.y)
+                handleDoubleTap(offset)
+                return true
+            }
+        })
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (event.action == MotionEvent.ACTION_DOWN) {
@@ -85,7 +92,12 @@ class PinnedEditText @JvmOverloads constructor(
         }
         val start = min(pinnedStart!!, pinnedEnd!!)
         val end = max(pinnedStart!!, pinnedEnd!!)
+
+        // Disable auto-scroll
+        ignoreBringPointIntoView = true
         setSelection(start, end)
+        postDelayed({ ignoreBringPointIntoView = false }, 50)
+
         onPinChanged?.invoke()
     }
 
@@ -151,7 +163,8 @@ class PinnedEditText @JvmOverloads constructor(
 
     fun previousSearchResult() {
         if (searchResults.isNotEmpty()) {
-            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            currentSearchIndex =
+                if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
             bringPointIntoView(range.first)
@@ -193,11 +206,13 @@ class PinnedEditText @JvmOverloads constructor(
             pinnedStart = parcel.readInt()
             pinnedEnd = parcel.readInt()
         }
+
         override fun writeToParcel(out: Parcel, flags: Int) {
             super.writeToParcel(out, flags)
             out.writeInt(pinnedStart)
             out.writeInt(pinnedEnd)
         }
+
         companion object CREATOR : Parcelable.Creator<SavedState> {
             override fun createFromParcel(parcel: Parcel): SavedState = SavedState(parcel)
             override fun newArray(size: Int): Array<SavedState?> = arrayOfNulls(size)
