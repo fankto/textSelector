@@ -1,57 +1,128 @@
-# TextSelector
+# textSelector
 
 ![License: Custom Non-Commercial](https://img.shields.io/badge/License-Custom%20Non--Commercial-red.svg)
-![Status: Alpha](https://img.shields.io/badge/Status-Beta-yellow.svg)
+![Status: Beta](https://img.shields.io/badge/Status-Beta-yellow.svg)
 
-TextSelector enhances text selection on Android by implementing PC-like selection behavior. Double-tap to set selection points and easily select large portions of text - similar to Shift+Click functionality on desktop computers.
+textSelector enhances text selection on Android by implementing PC-like selection behavior. Double-tap to set selection points and easily select large portions of text - similar to Shift+Click functionality on desktop computers.
 
-![Main Interface](images/portrait_dark.png)
-![Main Interface](images/landscape_light.png)
+<img src="images/portrait_dark.png" alt="Main Interface Portrait" width="300" />
+<img src="images/landscape_light.png" alt="Main Interface Landscape" width="600" />
 
 ## Features
 
-### 🎯 Intuitive Text Selection
-- **Double-tap anchoring:** Set start and end points for text selection
-- **Triple-tap to clear:** Quickly reset selection points
-- **Natural text selection:** Select text across multiple paragraphs easily
+### 🎯 Natural Selection Behavior
+- Double-tap anchoring for selection points
+- Triple-tap to clear selection
+- Seamless multi-paragraph selection
+- Visual selection markers
 
 ### 🔍 Smart Search
-- **Real-time highlighting:** Instantly see all matches
-- **Quick navigation:** Jump between search results
-- **Visual feedback:** Clear indication of current match position
+- Real-time match highlighting
+- Quick result navigation
+- Search progress tracking
 
 ### 💾 Selection Management
-- **Save selections:** Store important text snippets
-- **Quick access:** Review and reuse saved selections
-- **Edit & organize:** Manage your saved content efficiently
+- Local storage for important snippets
+- Fast access to saved content
+- Edit and organize capabilities
 
-### 🎨 Clean Design
-- **Dark/Light themes:** Comfortable reading in any lighting
-- **Material Design:** Modern, responsive interface
-- **Gesture controls:** Smooth, intuitive interactions
+### 🎨 Modern Design
+- Light/Dark theme support
+- Material Design 3 components
+- Gesture-driven interactions
 
 ## Technical Implementation
 
-TextSelector demonstrates advanced Android development concepts:
+textSelector demonstrates modern Android development practices:
 
-- **Custom View Implementation:** Extends EditText with sophisticated selection behavior
-- **Gesture Recognition:** Custom gesture detector for precise touch handling
-- **State Management:** Efficient handling of selection states and search results
-- **Room Database:** Local storage with clean architecture principles
+```mermaid
+graph TD
+    subgraph UI Layer
+        A[MainActivity] --> B[PinnedEditText]
+        A --> C[SavedSelectionsAdapter]
+        B --> D[Custom Touch Handler]
+        D --> E[GestureDetector]
+    end
 
-## Support My Work
+    subgraph ViewModel Layer
+        F[MainViewModel] --> G[Selection State]
+        F --> H[Search Logic]
+    end
 
-If you find TextSelector useful, consider supporting future development:
+    subgraph Data Layer
+        I[textSelectorRepository] --> J[Room Database]
+        J --> K[SavedSelectionDao]
+    end
 
-[Buy me a token!](https://buymeacoffee.com/TobiFank)
+    F --> I
+    A --> F
+```
 
-![Buy me a token QR Code](images/buymeatokenqr.png)
+### Core Components
+- **PinnedEditText:** Custom EditText implementation with:
+  - Gesture recognition for selection
+  - Selection state management
+  - Search result highlighting
+  - Visual marker rendering
+
+- **State Management:**
+  - MVVM architecture with LiveData
+  - Coroutines for async operations
+  - Room for persistent storage
+
+- **UI Components:**
+  - Material Design 3 theme
+  - Adaptive layouts
+  - Dynamic color support
+
+## Usage
+
+1. **Text Selection**
+   - Double-tap to set anchor points
+   - Select across paragraphs
+   - Triple-tap to clear
+
+2. **Search**
+   - Use toolbar search
+   - Navigate between matches
+   - See match position
+
+3. **Manage Selections**
+   - Save important snippets
+   - Quick access via library
+   - Edit saved content
+
+## Contributing
+Contributions to textSelector are welcome! Please submit a pull request for any proposed changes or additions. All contributions must comply with the Custom Non-Commercial, Contribution-Based License outlined in the [LICENSE](LICENSE.md) file.
+
+### Contributor License Agreement (CLA)
+By contributing, you agree to the terms outlined in the [CLA](CLA.md). This agreement ensures that all contributions can be used in any future version of the project, including potential commercial versions. Please read the CLA before submitting your pull request.
 
 ## License
-Licensed under a Custom Non-Commercial, Contribution-Based License. See [LICENSE](LICENSE.md) for details.
+Licensed under a Custom Non-Commercial, Contribution-Based License.
 
 ### Key Points:
 - **Private, non-commercial use** permitted
 - **Modifications** must be contributed back
 - **Commercial use** requires explicit permission
-- **Contact for Commercial Use:** [Tobias Fankhauser](https://www.linkedin.com/in/tobias-fankhauser)
+- **Contact:** [Tobias Fankhauser](https://www.linkedin.com/in/tobias-fankhauser)
+
+### Third-Party Licenses
+This project uses various third-party libraries that are subject to their own licenses:
+- **Kotlin & Android SDK**: Apache License 2.0
+- **Material Components**: Apache License 2.0
+- **AndroidX Libraries**: Apache License 2.0
+
+Please check each library's specific license terms for their usage restrictions.
+
+## Support
+If you find textSelector useful, consider supporting its development:
+
+[Buy me a token!](https://buymeacoffee.com/TobiFank)
+
+![Buy me a token QR Code](images/buymeatokenqr.png)
+
+## Acknowledgments
+- Material Design Components for modern UI elements
+- The Android Open Source Project
+- All contributors who have helped improve textSelector
