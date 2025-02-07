@@ -1,7 +1,7 @@
 # TextSelector
 
 ![License: Custom Non-Commercial](https://img.shields.io/badge/License-Custom%20Non--Commercial-red.svg)
-![Status: Alpha](https://img.shields.io/badge/Status-Alpha-orange.svg)
+![Status: Alpha](https://img.shields.io/badge/Status-Beta-yellow.svg)
 
 TextSelector enhances text selection on Android by implementing PC-like selection behavior. Double-tap to set selection points and easily select large portions of text - similar to Shift+Click functionality on desktop computers.
 
