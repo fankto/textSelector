@@ -5,20 +5,16 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="TextSelector"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:label="@string/app_name"
+        android:theme="@style/Theme.TextSelector">
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.TextSelector"
-            android:windowSoftInputMode="adjustResize|stateHidden">
+            android:name=".ui.MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Share intent -->
+            <!-- For SEND intents -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -26,4 +22,5 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>

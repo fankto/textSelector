@@ -6,20 +6,16 @@
     <application
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
-        android:label="TextSelector"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+        android:label="@string/app_name"
+        android:theme="@style/Theme.TextSelector">
         <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:theme="@style/Theme.TextSelector"
-            android:windowSoftInputMode="adjustResize|stateHidden">
+            android:name=".ui.MainActivity"
+            android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- Share intent -->
+            <!-- For SEND intents -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND"/>
                 <category android:name="android.intent.category.DEFAULT"/>
@@ -27,38 +23,349 @@
             </intent-filter>
         </activity>
     </application>
+
 </manifest>
 
 
 
 
-# java/com/example/textselector/TextSelectorDatabase.kt
-package com.example.textselector
+# java/com/example/textselector/ui/SavedSelectionsAdapter.kt
+package com.example.textselector.ui
+
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import androidx.recyclerview.widget.RecyclerView
+import com.example.textselector.R
+import com.example.textselector.data.SavedSelection
+import com.google.android.material.button.MaterialButton
+import java.text.SimpleDateFormat
+import java.util.*
+
+class SavedSelectionsAdapter(
+    private var selections: List<SavedSelection>,
+    private val onItemClick: (SavedSelection) -> Unit,
+    private val onDeleteClick: (SavedSelection) -> Unit,
+    private val onEditClick: (SavedSelection) -> Unit
+) : RecyclerView.Adapter<SavedSelectionsAdapter.ViewHolder>() {
+
+    private val dateFormat = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault())
+
+    inner class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
+        val titleText: TextView = view.findViewById(R.id.selectionTitle)
+        val timestampText: TextView = view.findViewById(R.id.timestamp)
+        val previewText: TextView = view.findViewById(R.id.previewText)
+        val deleteButton: MaterialButton = view.findViewById(R.id.deleteButton)
+        val editButton: MaterialButton = view.findViewById(R.id.editButton)
+    }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder =
+        ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_saved_selection, parent, false))
+
+    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+        val selection = selections[position]
+        holder.titleText.text = selection.name
+        holder.timestampText.text = dateFormat.format(Date(selection.timestamp))
+        holder.previewText.text = selection.getPreviewText()
+        holder.itemView.setOnClickListener { onItemClick(selection) }
+        holder.deleteButton.setOnClickListener { onDeleteClick(selection) }
+        holder.editButton.setOnClickListener { onEditClick(selection) }
+    }
+
+    override fun getItemCount(): Int = selections.size
+
+    fun updateSelections(newSelections: List<SavedSelection>) {
+        selections = newSelections.sortedByDescending { it.timestamp }
+        notifyDataSetChanged()
+    }
+}
+
+
+
+
+# java/com/example/textselector/ui/PinnedEditText.kt
+package com.example.textselector.ui
 
 import android.content.Context
-import androidx.room.Database
-import androidx.room.Room
-import androidx.room.RoomDatabase
+import android.os.Parcel
+import android.os.Parcelable
+import android.text.Editable
+import android.text.Spannable
+import android.text.style.BackgroundColorSpan
+import android.util.AttributeSet
+import android.view.GestureDetector
+import android.view.MotionEvent
+import androidx.appcompat.widget.AppCompatEditText
+import androidx.core.content.ContextCompat
+import com.example.textselector.R
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 
-@Database(entities = [SavedSelection::class], version = 1)
-abstract class TextSelectorDatabase : RoomDatabase() {
-    abstract fun savedSelectionDao(): SavedSelectionDao
+class PinnedEditText @JvmOverloads constructor(
+    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = android.R.attr.editTextStyle
+) : AppCompatEditText(context, attrs, defStyleAttr) {
 
-    companion object {
-        @Volatile
-        private var INSTANCE: TextSelectorDatabase? = null
+    private var pinnedStart: Int? = null
+    private var pinnedEnd: Int? = null
 
-        fun getDatabase(context: Context): TextSelectorDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    TextSelectorDatabase::class.java,
-                    "text_selector_database"
-                ).fallbackToDestructiveMigration()
-                    .build()
-                INSTANCE = instance
-                instance
+    private var tapCount = 0
+    private var lastTapTime = 0L
+    private val tripleTapThreshold = 500L
+
+    private var searchResults: List<IntRange> = emptyList()
+    private var currentSearchIndex = 0
+
+    var onPinChanged: (() -> Unit)? = null
+    var onSearchCleared: (() -> Unit)? = null
+    var selectionChangeListener: ((Int, Int) -> Unit)? = null
+
+    init {
+        if (text !is Editable) setText(text?.toString() ?: "")
+        isLongClickable = false
+    }
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            val offset = getOffsetForPosition(e.x, e.y)
+            handleDoubleTap(offset)
+            return true
+        }
+    })
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastTapTime < tripleTapThreshold) {
+                tapCount++
+            } else {
+                tapCount = 1
             }
+            lastTapTime = currentTime
+
+            if (tapCount == 3) {
+                clearSelectionPins()
+                tapCount = 0
+                return true
+            }
+        }
+        gestureDetector.onTouchEvent(event)
+        return super.onTouchEvent(event)
+    }
+
+    private fun handleDoubleTap(offset: Int) {
+        val (wordStart, wordEnd) = getWordBoundaries(offset)
+        if (pinnedStart == null || pinnedEnd == null) {
+            pinnedStart = wordStart
+            pinnedEnd = wordEnd
+        } else {
+            if (wordEnd <= pinnedStart!!) {
+                pinnedStart = wordStart
+            } else if (wordStart >= pinnedEnd!!) {
+                pinnedEnd = wordEnd
+            } else {
+                val diffStart = abs(wordStart - pinnedStart!!)
+                val diffEnd = abs(wordEnd - pinnedEnd!!)
+                if (diffStart < diffEnd) pinnedStart = wordStart else pinnedEnd = wordEnd
+            }
+        }
+        val start = min(pinnedStart!!, pinnedEnd!!)
+        val end = max(pinnedStart!!, pinnedEnd!!)
+        setSelection(start, end)
+        onPinChanged?.invoke()
+    }
+
+    private fun getWordBoundaries(offset: Int): Pair<Int, Int> {
+        val content = text?.toString() ?: ""
+        if (content.isEmpty()) return 0 to 0
+        var start = offset
+        var end = offset
+        while (start > 0 && !content[start - 1].isWhitespace()) start--
+        while (end < content.length && !content[end].isWhitespace()) end++
+        return start to end
+    }
+
+    fun clearSelectionPins() {
+        pinnedStart = null
+        pinnedEnd = null
+        setSelection(selectionStart, selectionStart)
+        onPinChanged?.invoke()
+    }
+
+    fun updateSearch(query: String) {
+        val editable = text ?: return
+        clearSearchHighlights(invokeCallback = false)
+        if (query.isEmpty()) return
+
+        val highlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        val regex = Regex(Regex.escape(query), RegexOption.IGNORE_CASE)
+        val matches = regex.findAll(editable.toString()).toList()
+        matches.forEach { match ->
+            editable.setSpan(
+                BackgroundColorSpan(highlightColor),
+                match.range.first,
+                match.range.last + 1,
+                Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
+            )
+        }
+        searchResults = matches.map { it.range }
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = 0
+            val range = searchResults[0]
+            setSelection(range.first, range.last + 1)
+        }
+    }
+
+    fun clearSearchHighlights(invokeCallback: Boolean = true) {
+        val editable = text ?: return
+        val highlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
+        editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
+            .filter { it.backgroundColor == highlightColor }
+            .forEach { editable.removeSpan(it) }
+        searchResults = emptyList()
+        if (invokeCallback) onSearchCleared?.invoke()
+    }
+
+    fun nextSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+            bringPointIntoView(range.first)
+        }
+    }
+
+    fun previousSearchResult() {
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+            val range = searchResults[currentSearchIndex]
+            setSelection(range.first, range.last + 1)
+            bringPointIntoView(range.first)
+        }
+    }
+
+    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
+        super.onSelectionChanged(selStart, selEnd)
+        selectionChangeListener?.invoke(selStart, selEnd)
+    }
+
+    override fun onSaveInstanceState(): Parcelable? {
+        val superState = super.onSaveInstanceState()
+        return SavedState(superState).apply {
+            pinnedStart = this@PinnedEditText.pinnedStart ?: -1
+            pinnedEnd = this@PinnedEditText.pinnedEnd ?: -1
+        }
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable?) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+        super.onRestoreInstanceState(state.superState)
+        pinnedStart = if (state.pinnedStart != -1) state.pinnedStart else null
+        pinnedEnd = if (state.pinnedEnd != -1) state.pinnedEnd else null
+        if (pinnedStart != null && pinnedEnd != null) {
+            setSelection(min(pinnedStart!!, pinnedEnd!!), max(pinnedStart!!, pinnedEnd!!))
+        }
+    }
+
+    internal class SavedState : BaseSavedState {
+        var pinnedStart: Int = -1
+        var pinnedEnd: Int = -1
+
+        constructor(superState: Parcelable?) : super(superState)
+        private constructor(parcel: Parcel) : super(parcel) {
+            pinnedStart = parcel.readInt()
+            pinnedEnd = parcel.readInt()
+        }
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeInt(pinnedStart)
+            out.writeInt(pinnedEnd)
+        }
+        companion object CREATOR : Parcelable.Creator<SavedState> {
+            override fun createFromParcel(parcel: Parcel): SavedState = SavedState(parcel)
+            override fun newArray(size: Int): Array<SavedState?> = arrayOfNulls(size)
+        }
+    }
+
+    // Expose search result data for external use.
+    val getSearchResultsCount: () -> Int = { searchResults.size }
+    val getCurrentSearchIndex: () -> Int = { currentSearchIndex + 1 }
+}
+
+
+
+
+# java/com/example/textselector/ui/viewmodel/MainViewModelFactory.kt
+package com.example.textselector.ui.viewmodel
+
+import android.content.Context
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import com.example.textselector.data.TextSelectorDatabase
+import com.example.textselector.data.TextSelectorRepository
+
+class MainViewModelFactory(context: Context) : ViewModelProvider.Factory {
+    private val repository = TextSelectorRepository(
+        TextSelectorDatabase.getInstance(context).savedSelectionDao()
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+            return MainViewModel(repository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
+    }
+}
+
+
+
+
+# java/com/example/textselector/ui/viewmodel/MainViewModel.kt
+package com.example.textselector.ui.viewmodel
+
+import androidx.lifecycle.*
+import com.example.textselector.data.SavedSelection
+import com.example.textselector.data.TextSelectorRepository
+import kotlinx.coroutines.launch
+
+class MainViewModel(private val repository: TextSelectorRepository) : ViewModel() {
+
+    private val _savedSelections = MutableLiveData<List<SavedSelection>>()
+    val savedSelections: LiveData<List<SavedSelection>> get() = _savedSelections
+
+    init {
+        loadSelections()
+    }
+
+    fun loadSelections() {
+        viewModelScope.launch {
+            _savedSelections.value = repository.getAllSelections()
+        }
+    }
+
+    fun saveSelection(selection: SavedSelection) {
+        viewModelScope.launch {
+            repository.insertSelection(selection)
+            loadSelections()
+        }
+    }
+
+    fun updateSelection(selection: SavedSelection) {
+        viewModelScope.launch {
+            repository.updateSelection(selection)
+            loadSelections()
+        }
+    }
+
+    fun deleteSelection(selection: SavedSelection) {
+        viewModelScope.launch {
+            repository.deleteSelection(selection)
+            loadSelections()
         }
     }
 }
@@ -66,56 +373,403 @@ abstract class TextSelectorDatabase : RoomDatabase() {
 
 
 
-# java/com/example/textselector/SavedSelection.kt
-// app/src/main/java/com/example/textselector/SavedSelection.kt
-package com.example.textselector
+# java/com/example/textselector/ui/MainActivity.kt
+package com.example.textselector.ui
+
+import android.content.Context
+import android.content.DialogInterface
+import android.os.Bundle
+import android.text.Html
+import android.view.Menu
+import android.view.MenuItem
+import android.view.View
+import android.view.inputmethod.EditorInfo
+import android.widget.ImageButton
+import android.widget.TextView
+import androidx.activity.viewModels
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.appcompat.widget.SearchView
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.lifecycle.Observer
+import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.textselector.R
+import com.example.textselector.data.SavedSelection
+import com.example.textselector.databinding.ActivityMainBinding
+import com.example.textselector.ui.viewmodel.MainViewModel
+import com.example.textselector.ui.viewmodel.MainViewModelFactory
+import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
+
+class MainActivity : AppCompatActivity() {
+
+    private lateinit var binding: ActivityMainBinding
+    private val viewModel: MainViewModel by viewModels { MainViewModelFactory(this) }
+    private var searchView: SearchView? = null
+    private var searchMenuItem: MenuItem? = null
+    private var wasSearchExpanded = false
+    private var savedSearchQuery: String? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+        val isDarkMode = prefs.getBoolean("isDarkMode", false)
+        AppCompatDelegate.setDefaultNightMode(
+            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+
+        super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        savedInstanceState?.let {
+            wasSearchExpanded = it.getBoolean("wasSearchExpanded", false)
+            savedSearchQuery = it.getString("savedSearchQuery")
+        }
+
+        setupToolbar()
+        setupTextArea()
+        setupSaveButton()
+        setupSearchNavigation()
+        observeViewModel()
+
+        // Handle SEND intent
+        if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
+            intent.getStringExtra("android.intent.extra.TEXT")?.let {
+                binding.pinnedEditText.setText(it)
+            }
+        }
+
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
+            val imeInsets = insets.getInsets(android.view.WindowInsets.Type.ime())
+            val navInsets = insets.getInsets(android.view.WindowInsets.Type.navigationBars())
+            view.setPadding(navInsets.left, view.paddingTop, navInsets.right, navInsets.bottom)
+            // Use safe call in case saveFab is missing in some layouts
+            binding.saveFab?.translationY = -imeInsets.bottom.toFloat()
+            binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
+            insets
+        }
+
+        binding.pinnedEditText.selectionChangeListener = { start, end ->
+            binding.saveFab?.visibility = if (end - start > 0) View.VISIBLE else View.GONE
+        }
+        binding.pinnedEditText.onPinChanged = { updatePinBanner() }
+        binding.pinnedEditText.onSearchCleared = { updateSearchNavigation(clear = true) }
+
+        binding.pinnedEditText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                binding.pinnedEditText.nextSearchResult()
+                updateSearchNavigation()
+                true
+            } else false
+        }
+    }
+
+    private fun observeViewModel() {
+        viewModel.savedSelections.observe(this, Observer {
+            // Update UI if needed.
+        })
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
+        outState.putString("savedSearchQuery", searchView?.query?.toString())
+        super.onSaveInstanceState(outState)
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        searchMenuItem = menu.findItem(R.id.action_search)
+        searchView = searchMenuItem?.actionView as? SearchView
+        searchView?.apply {
+            queryHint = getString(R.string.search_term)
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?) = true
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    binding.pinnedEditText.updateSearch(newText.orEmpty())
+                    updateSearchNavigation()
+                    return true
+                }
+            })
+        }
+        if (wasSearchExpanded) {
+            searchMenuItem?.expandActionView()
+            searchView?.setQuery(savedSearchQuery, false)
+        }
+        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                searchView?.requestFocus()
+                return true
+            }
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                binding.pinnedEditText.clearSearchHighlights()
+                return true
+            }
+        })
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        when (item.itemId) {
+            R.id.action_library -> {
+                showSavedSelections()
+                return true
+            }
+            R.id.action_toggle_theme -> {
+                toggleTheme()
+                return true
+            }
+        }
+        return super.onOptionsItemSelected(item)
+    }
+
+    private fun setupToolbar() {
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.setDisplayShowTitleEnabled(false)
+        binding.toolbar.findViewById<TextView>(R.id.toolbarTitle).apply {
+            text = getString(R.string.app_name)
+            setOnClickListener { showAboutDialog() }
+        }
+    }
+
+    private fun setupTextArea() {
+        if (binding.pinnedEditText.text.isNullOrEmpty())
+            binding.pinnedEditText.setText("")
+    }
+
+    private fun setupSaveButton() {
+        // Use safe calls so that if saveFab is absent (e.g. in landscape) it won’t crash.
+        binding.saveFab?.visibility = View.GONE
+        binding.saveFab?.setOnClickListener {
+            animateSaveButton { showSaveBottomSheet() }
+        }
+    }
+
+    private fun animateSaveButton(onAnimationEnd: () -> Unit) {
+        binding.saveFab?.animate()?.apply {
+            scaleX(0.8f).scaleY(0.8f).setDuration(100)
+            withEndAction {
+                binding.saveFab?.animate()?.scaleX(1f)?.scaleY(1f)?.setDuration(100)
+                    ?.withEndAction(onAnimationEnd)
+                    ?.start()
+            }
+            start()
+        }
+    }
+
+    // Implements search navigation using arrow buttons if available.
+    private fun setupSearchNavigation() {
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev).setOnClickListener {
+            binding.pinnedEditText.previousSearchResult()
+            updateSearchNavigation()
+        }
+        binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext).setOnClickListener {
+            binding.pinnedEditText.nextSearchResult()
+            updateSearchNavigation()
+        }
+    }
+
+    private fun updateSearchNavigation(clear: Boolean = false) {
+        val count = binding.pinnedEditText.getSearchResultsCount?.invoke() ?: 0
+        val current = binding.pinnedEditText.getCurrentSearchIndex?.invoke() ?: 0
+        binding.txtSearchCount?.text = if (count > 0) "$current / $count" else ""
+    }
+
+    private fun showSaveBottomSheet() {
+        val selectionText = binding.pinnedEditText.text?.substring(
+            binding.pinnedEditText.selectionStart,
+            binding.pinnedEditText.selectionEnd
+        ) ?: return
+
+        val bottomSheetDialog = BottomSheetDialog(this)
+        val sheetView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
+        bottomSheetDialog.setContentView(sheetView)
+
+        val nameInput = sheetView.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.nameInput)
+        val previewText = sheetView.findViewById<TextView>(R.id.previewText)
+        val saveButton = sheetView.findViewById<TextView>(R.id.saveButton)
+        val cancelButton = sheetView.findViewById<TextView>(R.id.cancelButton)
+
+        val defaultName = selectionText.take(50).replace("\n", " ").split(" ").take(5).joinToString(" ")
+        nameInput.setText(defaultName)
+        previewText.text = selectionText
+
+        saveButton.setOnClickListener {
+            val name = nameInput.text.toString().ifBlank { defaultName }
+            val selection = SavedSelection(name = name, text = selectionText)
+            viewModel.saveSelection(selection)
+            bottomSheetDialog.dismiss()
+            showSnackbar(getString(R.string.selection_saved))
+        }
+        cancelButton.setOnClickListener { bottomSheetDialog.dismiss() }
+        bottomSheetDialog.show()
+    }
+
+    private fun showSavedSelections() {
+        val selections = viewModel.savedSelections.value
+        if (selections.isNullOrEmpty()) {
+            showSnackbar(getString(R.string.no_selections))
+            return
+        }
+        val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
+        val recyclerView = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.savedSelectionsRecyclerView)
+        recyclerView.layoutManager = LinearLayoutManager(this)
+
+        val alertDialog = MaterialAlertDialogBuilder(this)
+            .setView(dialogView)
+            .create()
+
+        val adapter = SavedSelectionsAdapter(selections,
+            onItemClick = { selection ->
+                binding.pinnedEditText.clearSelectionPins()
+                binding.pinnedEditText.clearSearchHighlights()
+                binding.pinnedEditText.setText(selection.text)
+                alertDialog.dismiss()
+            },
+            onDeleteClick = { selection -> showDeleteConfirmation(selection) },
+            onEditClick = { selection -> showEditDialog(selection) }
+        )
+        recyclerView.adapter = adapter
+        alertDialog.show()
+    }
+
+    private fun showDeleteConfirmation(selection: SavedSelection) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.delete_selection))
+            .setMessage(getString(R.string.delete_confirmation, selection.name))
+            .setPositiveButton(getString(R.string.delete)) { dialog, which ->
+                viewModel.deleteSelection(selection)
+                showSnackbar(getString(R.string.selection_deleted))
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
+    private fun showEditDialog(selection: SavedSelection) {
+        val dialogView: View = layoutInflater.inflate(R.layout.dialog_edit_selection, null)
+        val nameInput = dialogView.findViewById<android.widget.EditText>(R.id.nameInput)
+        nameInput.setText(selection.name)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.edit_selection))
+            .setView(dialogView)
+            .setPositiveButton(getString(R.string.save)) { dialog: DialogInterface, which: Int ->
+                val updatedSelection = selection.copy(
+                    name = nameInput.text.toString().ifBlank { selection.name }
+                )
+                viewModel.updateSelection(updatedSelection)
+                showSnackbar(getString(R.string.selection_updated))
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
+    private fun toggleTheme() {
+        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
+        val isDarkMode = prefs.getBoolean("isDarkMode", false)
+        prefs.edit().putBoolean("isDarkMode", !isDarkMode).apply()
+        AppCompatDelegate.setDefaultNightMode(
+            if (!isDarkMode) AppCompatDelegate.MODE_NIGHT_YES else AppCompatDelegate.MODE_NIGHT_NO
+        )
+        recreate()
+    }
+
+    private fun updatePinBanner() {
+        binding.bottomBanner.visibility =
+            if (binding.pinnedEditText.selectionStart != binding.pinnedEditText.selectionEnd)
+                View.VISIBLE else View.GONE
+    }
+
+    private fun showSnackbar(message: String) {
+        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
+    }
+
+    private fun showAboutDialog() {
+        val aboutHtml = """
+            <h1>Tobias Fankhauser</h1>
+            <p>Visit my <a href="https://github.com/TobiFank">GitHub</a> or <a href="https://www.linkedin.com/in/tobias-fankhauser">LinkedIn</a>.</p>
+            <p>Thank you for using this app!</p>
+        """.trimIndent()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.about))
+            .setMessage(Html.fromHtml(aboutHtml, Html.FROM_HTML_MODE_LEGACY))
+            .setPositiveButton(getString(R.string.ok), null)
+            .show()
+    }
+}
+
+
+
+
+# java/com/example/textselector/data/TextSelectorRepository.kt
+package com.example.textselector.data
+
+class TextSelectorRepository(private val dao: SavedSelectionDao) {
+    suspend fun getAllSelections(): List<SavedSelection> = dao.getAll()
+    suspend fun insertSelection(selection: SavedSelection) = dao.insert(selection)
+    suspend fun updateSelection(selection: SavedSelection) = dao.update(selection)
+    suspend fun deleteSelection(selection: SavedSelection) = dao.delete(selection)
+}
+
+
+
+
+# java/com/example/textselector/data/TextSelectorDatabase.kt
+package com.example.textselector.data
+
+import android.content.Context
+import androidx.room.Database
+import androidx.room.Room
+import androidx.room.RoomDatabase
+
+@Database(entities = [SavedSelection::class], version = 1, exportSchema = false)
+abstract class TextSelectorDatabase : RoomDatabase() {
+    abstract fun savedSelectionDao(): SavedSelectionDao
+
+    companion object {
+        @Volatile private var INSTANCE: TextSelectorDatabase? = null
+
+        fun getInstance(context: Context): TextSelectorDatabase =
+            INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    TextSelectorDatabase::class.java,
+                    "text_selector_database"
+                )
+                    .fallbackToDestructiveMigration()
+                    .build().also { INSTANCE = it }
+            }
+    }
+}
+
+
+
+
+# java/com/example/textselector/data/SavedSelection.kt
+package com.example.textselector.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "saved_selection")
 data class SavedSelection(
-    @PrimaryKey val id: Long = System.currentTimeMillis(), // use timestamp as unique id
+    @PrimaryKey val id: Long = System.currentTimeMillis(),
     val name: String,
     val text: String,
     val timestamp: Long = System.currentTimeMillis()
 ) {
-    fun getPreviewText(): String {
-        // Get first paragraph or first 150 chars
-        val endIndex = minOf(
-            text.indexOf("\n").takeIf { it != -1 } ?: 150,
-            150
-        )
-        return text.take(endIndex) + if (text.length > endIndex) "..." else ""
+    fun getPreviewText(maxChars: Int = 150): String {
+        val preview = text.take(maxChars)
+        return if (text.length > maxChars) "$preview..." else preview
     }
 }
 
 
 
 
-# java/com/example/textselector/CustomFloatingActionButton.kt
-package com.example.textselector
-
-import android.content.Context
-import android.util.AttributeSet
-import com.google.android.material.floatingactionbutton.FloatingActionButton
-
-class CustomFloatingActionButton @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = 0
-) : FloatingActionButton(context, attrs, defStyleAttr) {
-    override fun performClick(): Boolean {
-        // Optionally add any custom behavior here.
-        return super.performClick()
-    }
-}
-
-
-
-
-# java/com/example/textselector/SavedSelectionDao.kt
-package com.example.textselector
+# java/com/example/textselector/data/SavedSelectionDao.kt
+package com.example.textselector.data
 
 import androidx.room.*
 
@@ -132,1021 +786,6 @@ interface SavedSelectionDao {
 
     @Delete
     suspend fun delete(selection: SavedSelection)
-}
-
-
-
-
-# java/com/example/textselector/SavedSelectionsAdapter.kt
-// app/src/main/java/com/example/textselector/SavedSelectionsAdapter.kt
-package com.example.textselector
-
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ImageButton
-import android.widget.TextView
-import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.button.MaterialButton
-import java.text.SimpleDateFormat
-import java.util.*
-
-class SavedSelectionsAdapter(
-    private var selections: List<SavedSelection>,
-    private val onItemClick: (SavedSelection) -> Unit,
-    private val onDeleteClick: (SavedSelection) -> Unit,
-    private val onEditClick: (SavedSelection) -> Unit
-) : RecyclerView.Adapter<SavedSelectionsAdapter.ViewHolder>() {
-
-    private val dateFormat = SimpleDateFormat("MMM d, yyyy HH:mm", Locale.getDefault())
-
-    class ViewHolder(view: View) : RecyclerView.ViewHolder(view) {
-        val titleText: TextView = view.findViewById(R.id.selectionTitle)
-        val timestampText: TextView = view.findViewById(R.id.timestamp)
-        val previewText: TextView = view.findViewById(R.id.previewText)
-        val deleteButton: MaterialButton = view.findViewById(R.id.deleteButton)
-        val editButton: MaterialButton = view.findViewById(R.id.editButton)
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        val view = LayoutInflater.from(parent.context)
-            .inflate(R.layout.item_saved_selection, parent, false)
-        return ViewHolder(view)
-    }
-
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        val selection = selections[position]
-        holder.titleText.text = selection.name
-        holder.timestampText.text = dateFormat.format(Date(selection.timestamp))
-        holder.previewText.text = selection.getPreviewText()
-
-        holder.itemView.setOnClickListener { onItemClick(selection) }
-        holder.deleteButton.setOnClickListener { onDeleteClick(selection) }
-        holder.editButton.setOnClickListener { onEditClick(selection) }
-    }
-
-    override fun getItemCount() = selections.size
-
-    fun updateSelections(newSelections: List<SavedSelection>) {
-        selections = newSelections.sortedByDescending { it.timestamp }
-        notifyDataSetChanged()
-    }
-}
-
-
-
-# java/com/example/textselector/PinnedEditText.kt
-package com.example.textselector
-
-import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.Rect
-import android.os.Parcel
-import android.os.Parcelable
-import android.text.Editable
-import android.text.Spannable
-import android.text.SpannableString
-import android.text.SpannableStringBuilder
-import android.text.style.BackgroundColorSpan
-import android.util.AttributeSet
-import android.util.Log
-import android.view.GestureDetector
-import android.view.MotionEvent
-import android.widget.TextView
-import androidx.appcompat.widget.AppCompatEditText
-import androidx.core.content.ContextCompat
-import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
-import java.util.regex.Pattern
-
-class PinnedEditText @JvmOverloads constructor(
-    context: Context,
-    attrs: AttributeSet? = null,
-    defStyleAttr: Int = android.R.attr.editTextStyle
-) : AppCompatEditText(context, attrs, defStyleAttr) {
-
-    // Stores the two boundaries of the current selection.
-    private var pinnedStart: Int? = null
-    private var pinnedEnd: Int? = null
-
-    // For detecting triple taps.
-    private var tapCount = 0
-    private var lastTapTime = 0L
-    private val tripleTapThreshold = 500L // milliseconds
-
-    // --- New search navigation support ---
-    private var searchResults: List<IntRange> = emptyList()
-    private var currentSearchIndex: Int = 0
-
-    var selectionChangeListener: ((Int, Int) -> Unit)? = null
-    var onSearchCleared: (() -> Unit)? = null
-    fun isPinActive(): Boolean = pinnedStart != null && pinnedEnd != null
-
-    override fun onSelectionChanged(selStart: Int, selEnd: Int) {
-        super.onSelectionChanged(selStart, selEnd)
-        selectionChangeListener?.invoke(selStart, selEnd)
-    }
-
-    private var restoreScrollRunnable: Runnable? = null
-    private var savedScrollY: Int = 0
-    private var userScrolling = false
-
-    private fun handleDoubleTap(offset: Int) {
-        // Determine the tapped word’s boundaries.
-        val (wordStart, wordEnd) = selectWordAt(offset)
-        Logger.d(
-            "PinnedEditText",
-            "DoubleTap: offset=$offset, wordStart=$wordStart, wordEnd=$wordEnd"
-        )
-
-        // Save the current scroll position so we can restore it.
-        val currentScrollY = scrollY
-
-        if (pinnedStart == null || pinnedEnd == null) {
-            // First double-tap: set both pins to exactly the tapped word.
-            pinnedStart = wordStart
-            pinnedEnd = wordEnd
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        } else {
-            // Decide which pin to update:
-            if (wordEnd <= pinnedStart!!) {
-                // The new word is entirely before the current selection.
-                pinnedStart = wordStart
-            } else if (wordStart >= pinnedEnd!!) {
-                // The new word is entirely after the current selection.
-                pinnedEnd = wordEnd
-            } else {
-                // The new word overlaps the current selection.
-                // Compare the difference between new word's start and current start pin,
-                // and new word's end and current end pin.
-                val diffStart = abs(wordStart - pinnedStart!!)
-                val diffEnd = abs(wordEnd - pinnedEnd!!)
-                if (diffStart <= diffEnd) {
-                    // Update the start pin to the new word’s start.
-                    pinnedStart = wordStart
-                } else {
-                    // Update the end pin to the new word’s end.
-                    pinnedEnd = wordEnd
-                }
-            }
-            // Always set selection from the lower to the higher index.
-            val newStart = min(pinnedStart!!, pinnedEnd!!)
-            val newEnd = max(pinnedStart!!, pinnedEnd!!)
-            setSelection(newStart, newEnd)
-        }
-
-        savedScrollY = scrollY
-        // Cancel any previous restoration runnable
-        restoreScrollRunnable?.let { removeCallbacks(it) }
-        // Schedule scroll restoration after a short delay (adjust delay as needed)
-        restoreScrollRunnable = Runnable {
-            if (!userScrolling) {
-                scrollTo(scrollX, savedScrollY)
-            }
-        }
-        postDelayed(restoreScrollRunnable, 300) // 300ms delay
-    }
-
-
-    fun clearSelectionPins() {
-        pinnedStart = null
-        pinnedEnd = null
-        val pos = selectionStart
-        setSelection(pos, pos)
-        invalidate()
-        onSearchCleared?.invoke()
-    }
-
-    fun clearSearchHighlights(invokeCallback: Boolean = true) {
-        val editable = text ?: return
-        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
-        val spans = editable.getSpans(0, editable.length, BackgroundColorSpan::class.java)
-        spans.forEach { span ->
-            if (span.backgroundColor == searchHighlightColor) {
-                editable.removeSpan(span)
-            }
-        }
-        searchResults = emptyList()
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
-        invalidate()
-        if (invokeCallback) {
-            onSearchCleared?.invoke()
-        }
-    }
-
-    // Gesture detector for double taps.
-    private val gestureDetector =
-        GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
-            override fun onDoubleTap(e: MotionEvent): Boolean {
-                // Use the layout directly to compute the tapped offset.
-                val layout = layout ?: return false
-                // Adjust e.y from the visible area to the full text layout coordinate:
-                val adjustedY = e.y + scrollY - totalPaddingTop
-                val line = layout.getLineForVertical(adjustedY.toInt())
-                val offset = layout.getOffsetForHorizontal(line, e.x)
-
-                handleDoubleTap(offset)
-                return true
-            }
-        })
-
-    init {
-        if (text !is Editable) {
-            Logger.d("PinnedEditText", "Converting text to Editable")
-            setText(Editable.Factory.getInstance().newEditable(text))
-        }
-        // Disable long press so the double tap isn’t delayed
-        gestureDetector.setIsLongpressEnabled(false)
-        // Prevent the keyboard from appearing automatically when the view gains focus.
-        // (This makes scrolling and taps not open the keyboard by default.)
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.LOLLIPOP) {
-            showSoftInputOnFocus = false
-        } else {
-            @Suppress("DEPRECATION")
-            setTextIsSelectable(true)
-        }
-    }
-
-    override fun onFocusChanged(focused: Boolean, direction: Int, previouslyFocusedRect: Rect?) {
-        super.onFocusChanged(focused, direction, previouslyFocusedRect)
-        // When losing focus (e.g. when the keyboard is dismissed) we restore the pinned selection.
-        if (!focused && pinnedStart != null && pinnedEnd != null) {
-            // Post a restore so that when focus returns the selection remains.
-            post { setSelection(pinnedStart!!, pinnedEnd!!) }
-        }
-    }
-
-    // Paint used to draw the "PIN" indicator.
-    private val pinIndicatorPaint = Paint().apply {
-        color = ContextCompat.getColor(context, R.color.gold_primary)
-        textSize = 36f  // adjust as needed
-        isAntiAlias = true
-    }
-
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        when (event.action) {
-            MotionEvent.ACTION_MOVE -> {
-                // The user is scrolling manually; cancel the scheduled restoration
-                userScrolling = true
-                restoreScrollRunnable?.let { removeCallbacks(it) }
-            }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                userScrolling = false
-            }
-        }
-        // Let the gesture detector and default handling process the event
-        gestureDetector.onTouchEvent(event)
-        return super.onTouchEvent(event)
-    }
-
-
-    /**
-     * Returns the full boundaries (start, end) of the word at the given text offset.
-     */
-    private fun selectWordAt(offset: Int): Pair<Int, Int> {
-        val textStr = text?.toString() ?: ""
-        if (textStr.isEmpty()) return Pair(0, 0)
-        var start = offset
-        var end = offset
-        while (start > 0 && !textStr[start - 1].isWhitespace()) {
-            start--
-        }
-        while (end < textStr.length && !textStr[end].isWhitespace()) {
-            end++
-        }
-        return Pair(start, end)
-    }
-
-    fun getSearchResultsCount(): Int = searchResults.size
-
-    fun getCurrentSearchIndex(): Int = if (searchResults.isNotEmpty()) currentSearchIndex + 1 else 0
-
-    fun updateSearch(query: String) {
-        Logger.d("PinnedEditText", "updateSearch called with query: '$query'")
-
-        val editable = editableText
-        if (editable == null) {
-            Logger.e("PinnedEditText", "Text is not editable!")
-            return
-        }
-        Logger.d("PinnedEditText", "Current text content: '${editable.toString()}'")
-
-        clearSearchHighlights(invokeCallback = false)
-        Logger.d("PinnedEditText", "Cleared previous highlights")
-
-        if (query.isEmpty()) {
-            Logger.d("PinnedEditText", "Empty query, returning")
-            return
-        }
-
-        val searchHighlightColor = ContextCompat.getColor(context, R.color.searchHighlight)
-        Logger.d("PinnedEditText", "Search highlight color: $searchHighlightColor")
-
-        try {
-            val regex = Regex(Regex.escape(query), RegexOption.IGNORE_CASE)
-            Logger.d("PinnedEditText", "Created regex: ${regex.pattern}")
-
-            val text = editable.toString()
-            val matches = regex.findAll(text).toList()
-            Logger.d("PinnedEditText", "Found ${matches.size} matches")
-
-            matches.forEach { match ->
-                Logger.d("PinnedEditText", "Match at ${match.range}: '${match.value}'")
-                editable.setSpan(
-                    BackgroundColorSpan(searchHighlightColor),
-                    match.range.first,
-                    match.range.last + 1,
-                    Spannable.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-            }
-
-            searchResults = matches.map { it.range }
-            Logger.d("PinnedEditText", "Set searchResults to ${searchResults.size} ranges")
-
-            if (searchResults.isNotEmpty()) {
-                currentSearchIndex = 0
-                val firstRange = searchResults[0]
-                Logger.d("PinnedEditText", "Selecting first match: $firstRange")
-                setSelection(firstRange.first, firstRange.last + 1)
-            }
-
-            postInvalidate()
-            Logger.d("PinnedEditText", "Search update complete")
-
-        } catch (e: Exception) {
-            Logger.e("PinnedEditText", "Search failed", e)
-            e.printStackTrace()
-        }
-    }
-
-    private fun scrollToOffset(offset: Int) {
-        val layout = layout ?: return
-        val line = layout.getLineForOffset(offset)
-        // Calculate the vertical position of this line
-        val y = layout.getLineTop(line)
-        // scrollTo(x, y) will scroll the text so that the given y-coordinate is at the top.
-        scrollTo(scrollX, y)
-    }
-
-
-    fun nextSearchResult() {
-        if (searchResults.isNotEmpty()) {
-            currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
-            val range = searchResults[currentSearchIndex]
-            setSelection(range.first, range.last + 1)
-            post { scrollToOffset(range.first) }
-        }
-    }
-
-    override fun bringPointIntoView(offset: Int): Boolean {
-        return false
-    }
-
-
-    fun previousSearchResult() {
-        if (searchResults.isNotEmpty()) {
-            currentSearchIndex =
-                if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
-            val range = searchResults[currentSearchIndex]
-            setSelection(range.first, range.last + 1)
-            post { scrollToOffset(range.first) }
-        }
-    }
-
-    override fun onSaveInstanceState(): Parcelable? {
-        val superState = super.onSaveInstanceState()
-        val ss = SavedState(superState)
-        ss.pinnedStart = pinnedStart ?: -1
-        ss.pinnedEnd = pinnedEnd ?: -1
-        return ss
-    }
-
-    override fun onRestoreInstanceState(state: Parcelable?) {
-        if (state !is SavedState) {
-            super.onRestoreInstanceState(state)
-            return
-        }
-        super.onRestoreInstanceState(state.superState)
-        pinnedStart = if (state.pinnedStart != -1) state.pinnedStart else null
-        pinnedEnd = if (state.pinnedEnd != -1) state.pinnedEnd else null
-        if (pinnedStart != null && pinnedEnd != null) {
-            setSelection(pinnedStart!!, pinnedEnd!!)
-        }
-        invalidate()
-    }
-
-    internal class SavedState : BaseSavedState {
-        var pinnedStart: Int = -1
-        var pinnedEnd: Int = -1
-
-        constructor(superState: Parcelable?) : super(superState)
-        private constructor(parcel: Parcel) : super(parcel) {
-            pinnedStart = parcel.readInt()
-            pinnedEnd = parcel.readInt()
-        }
-
-        override fun writeToParcel(out: Parcel, flags: Int) {
-            super.writeToParcel(out, flags)
-            out.writeInt(pinnedStart)
-            out.writeInt(pinnedEnd)
-        }
-
-        companion object CREATOR : Parcelable.Creator<SavedState> {
-            override fun createFromParcel(parcel: Parcel): SavedState {
-                return SavedState(parcel)
-            }
-
-            override fun newArray(size: Int): Array<SavedState?> {
-                return arrayOfNulls(size)
-            }
-        }
-    }
-
-}
-
-
-
-
-# java/com/example/textselector/Logger.kt
-package com.example.textselector
-
-import android.util.Log
-
-object Logger {
-    private const val DEBUG = false
-
-    fun d(tag: String, message: String) {
-        if (DEBUG) {
-            Log.d(tag, message)
-        }
-    }
-
-    fun e(tag: String, message: String, throwable: Throwable? = null) {
-        if (DEBUG) {
-            Log.e(tag, message, throwable)
-        }
-    }
-
-    fun w(tag: String, message: String) {
-        if (DEBUG) {
-            Log.w(tag, message)
-        }
-    }
-
-    fun i(tag: String, message: String) {
-        if (DEBUG) {
-            Log.i(tag, message)
-        }
-    }
-}
-
-
-
-# java/com/example/textselector/MainActivity.kt
-package com.example.textselector
-
-import android.content.Context
-import android.content.res.Configuration
-import android.os.Bundle
-import android.text.Html
-import android.util.Log
-import android.view.Menu
-import android.view.MenuItem
-import android.view.MotionEvent
-import android.view.View
-import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.app.AppCompatDelegate
-import androidx.core.widget.doAfterTextChanged
-import androidx.lifecycle.lifecycleScope
-import com.example.textselector.databinding.ActivityMainBinding
-import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.textfield.TextInputEditText
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import androidx.appcompat.widget.SearchView
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
-import android.view.animation.AccelerateDecelerateInterpolator
-import android.view.inputmethod.EditorInfo
-import android.view.inputmethod.InputMethodManager
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.TextView
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import com.google.android.material.bottomsheet.BottomSheetBehavior
-import kotlin.math.abs
-
-class MainActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityMainBinding
-    private var searchView: SearchView? = null
-    private var searchMenuItem: MenuItem? = null
-    private lateinit var db: TextSelectorDatabase
-    private var wasSearchExpanded = false
-    private var savedSearchQuery: String? = null
-
-    override fun onConfigurationChanged(newConfig: Configuration) {
-        super.onConfigurationChanged(newConfig)
-        // The system loads the correct layout automatically.
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        super.onSaveInstanceState(outState)
-        outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
-        outState.putString("savedSearchQuery", searchView?.query?.toString())
-    }
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
-        val isDarkMode = prefs.getBoolean("isDarkMode", false)
-        if (isDarkMode) {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-        } else {
-            AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-        }
-
-        super.onCreate(savedInstanceState)
-
-        WindowCompat.setDecorFitsSystemWindows(window, false)
-        val insetsController = WindowCompat.getInsetsController(window, window.decorView)
-        insetsController.isAppearanceLightStatusBars = !isDarkMode
-
-        binding = ActivityMainBinding.inflate(layoutInflater)
-        setContentView(binding.root)
-
-        if (savedInstanceState != null) {
-            wasSearchExpanded = savedInstanceState.getBoolean("wasSearchExpanded", false)
-            savedSearchQuery = savedInstanceState.getString("savedSearchQuery")
-        }
-
-        // Initialize the Room database.
-        db = TextSelectorDatabase.getDatabase(this)
-
-        binding.saveFab.setOnTouchListener(object : View.OnTouchListener {
-            var dX = 0f
-            var dY = 0f
-            var downRawX = 0f
-            var downRawY = 0f
-            val CLICK_DRAG_TOLERANCE = 10  // in pixels
-            override fun onTouch(v: View, event: MotionEvent): Boolean {
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        downRawX = event.rawX
-                        downRawY = event.rawY
-                        dX = v.x - event.rawX
-                        dY = v.y - event.rawY
-                        return true
-                    }
-
-                    MotionEvent.ACTION_MOVE -> {
-                        v.animate().x(event.rawX + dX).y(event.rawY + dY).setDuration(0).start()
-                        return true
-                    }
-
-                    MotionEvent.ACTION_UP -> {
-                        val upRawX = event.rawX
-                        val upRawY = event.rawY
-                        if (abs(upRawX - downRawX) < CLICK_DRAG_TOLERANCE &&
-                            abs(upRawY - downRawY) < CLICK_DRAG_TOLERANCE
-                        ) {
-                            v.performClick()
-                        }
-                        return true
-                    }
-
-                    else -> return false
-                }
-            }
-        })
-
-        binding.pinnedEditText.selectionChangeListener = { start, end ->
-            binding.saveFab.visibility = if (end - start > 0) View.VISIBLE else View.GONE
-        }
-
-        binding.pinnedEditText.onSearchCleared = {
-            binding.searchNavigation.visibility = View.GONE
-            binding.txtSearchCount.text = ""
-            if (binding.pinnedEditText.isPinActive()) {
-                binding.bottomBanner.visibility = View.VISIBLE
-                binding.tvBannerInfo.text = getString(R.string.pin_active)
-            } else {
-                binding.bottomBanner.visibility = View.GONE
-                binding.tvBannerInfo.text = ""
-            }
-            searchView?.setQuery("", false)
-            searchView?.clearFocus()
-            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-            imm.hideSoftInputFromWindow(binding.pinnedEditText.windowToken, 0)
-            searchMenuItem?.collapseActionView()
-        }
-
-        if (binding.pinnedEditText.text.isNullOrEmpty()) {
-            binding.pinnedEditText.setText("")
-        }
-
-        setupToolbar()
-        setupTextArea()
-        setupSaveButton()
-        setupSearchNavigation()
-
-        // Handle SEND intent if present.
-        if (intent?.action == "android.intent.action.SEND" && intent.type == "text/plain") {
-            intent.getStringExtra("android.intent.extra.TEXT")?.let {
-                binding.pinnedEditText.setText(it)
-            }
-        }
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { view, insets ->
-            // Get the inset from the keyboard (IME)
-            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
-            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
-
-            view.setPadding(
-                navInsets.left,
-                view.paddingTop,
-                navInsets.right,
-                navInsets.bottom
-            )
-            // Translate your FAB and search navigation upward by the keyboard’s height.
-            binding.saveFab.translationY = -imeInsets.bottom.toFloat()
-            binding.searchNavigation.translationY = -imeInsets.bottom.toFloat()
-            // Always return the insets so that child views can also use them.
-            insets
-        }
-
-        binding.pinnedEditText.setOnEditorActionListener { v, actionId, event ->
-            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
-                binding.pinnedEditText.nextSearchResult()
-                updateSearchNavigation()
-                true
-            } else {
-                false
-            }
-        }
-    }
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menuInflater.inflate(R.menu.menu_main, menu)
-        searchMenuItem = menu.findItem(R.id.action_search)
-        searchView = searchMenuItem?.actionView as? SearchView
-        searchView?.apply {
-            setIconifiedByDefault(true)
-            queryHint = getString(R.string.search_term)
-            setOnSearchClickListener {
-                requestFocus()
-                requestFocusFromTouch()
-            }
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean = true
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    binding.pinnedEditText.updateSearch(newText.orEmpty())
-                    val resultCount = binding.pinnedEditText.getSearchResultsCount()
-                    binding.searchNavigation.visibility =
-                        if (resultCount > 0) View.VISIBLE else View.GONE
-                    if (resultCount > 0) updateSearchNavigation()
-                    return true
-                }
-            })
-        }
-
-        if (wasSearchExpanded) {
-            searchMenuItem?.expandActionView()
-            searchView?.setQuery(savedSearchQuery, false)
-        }
-
-        searchMenuItem?.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
-            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
-                searchView?.requestFocusFromTouch()
-                return true
-            }
-
-            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
-                binding.pinnedEditText.clearSearchHighlights(invokeCallback = false)
-                return true
-            }
-        })
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_library -> {
-                showSavedSelections()
-                return true
-            }
-
-            R.id.action_toggle_theme -> {
-                toggleTheme()
-                return true
-            }
-
-            else -> return super.onOptionsItemSelected(item)
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        updatePinBanner()
-    }
-
-    private fun updatePinBanner() {
-        if (binding.pinnedEditText.isPinActive()) {
-            binding.bottomBanner.visibility = View.VISIBLE
-            binding.tvBannerInfo.text = getString(R.string.pin_active)
-        } else {
-            binding.bottomBanner.visibility = View.GONE
-            binding.tvBannerInfo.text = ""
-        }
-    }
-
-    // Toggle dark/light mode and store the new preference.
-    private fun toggleTheme() {
-        val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
-        val isDarkMode = prefs.getBoolean("isDarkMode", false)
-        val newMode =
-            if (isDarkMode) AppCompatDelegate.MODE_NIGHT_NO else AppCompatDelegate.MODE_NIGHT_YES
-        prefs.edit().putBoolean("isDarkMode", !isDarkMode).apply()
-        AppCompatDelegate.setDefaultNightMode(newMode)
-        // Recreate the activity so the theme change takes effect immediately.
-        recreate()
-    }
-
-    private fun setupToolbar() {
-        setSupportActionBar(binding.toolbar)
-        supportActionBar?.setDisplayShowTitleEnabled(false)
-        val toolbarTitle = binding.toolbar.findViewById<TextView>(R.id.toolbarTitle)
-
-        val aboutMessage = """
-        <div style="font-family: 'Segoe UI', Roboto, -apple-system, sans-serif; max-width: 600px; margin: 2em auto; padding: 2em; background: #ffffff; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
-            <h1 style="color: #666666; margin: 0 0 1em 0; font-weight: normal;">Tobias Fankhauser</h1>
-            
-            <div style="display: flex; flex-direction: column; gap: 1em;">
-                <a href="https://github.com/TobiFank" style="color: #f0a500; text-decoration: none;">GitHub</a>
-                <a href="https://www.linkedin.com/in/tobias-fankhauser" style="color: #f0a500; text-decoration: none;">LinkedIn</a>
-                <a href="https://buymeacoffee.com/TobiFank" style="color: #f0a500; text-decoration: none;">Buy me a coffee</a>
-            </div>
-    
-            <p style="color: #666666; margin-top: 2em;">Thank you for exploring my work! I welcome your feedback and bug reports to help make this app even better. Have a great day!</p>
-        </div>
-        """.trimIndent()
-
-        toolbarTitle.setOnClickListener {
-            MaterialAlertDialogBuilder(this)
-                .setTitle("About")
-                .setMessage(Html.fromHtml(aboutMessage, Html.FROM_HTML_MODE_LEGACY))
-                .setPositiveButton("OK", null)
-                .show()
-        }
-
-        binding.toolbar.setOnMenuItemClickListener { menuItem ->
-            when (menuItem.itemId) {
-                R.id.action_library -> {
-                    showSavedSelections()
-                    true
-                }
-
-                R.id.action_toggle_theme -> {
-                    toggleTheme()
-                    true
-                }
-
-                else -> false
-            }
-        }
-    }
-
-    private fun setupTextArea() {
-        binding.pinnedEditText.doAfterTextChanged { text ->
-            binding.saveFab.visibility = if (text.isNullOrEmpty()) View.GONE else View.VISIBLE
-        }
-    }
-
-    private fun setupSaveButton() {
-        binding.saveFab.apply {
-            visibility = View.GONE
-            setOnClickListener {
-                animateSaveButton {
-                    showSaveBottomSheet()
-                }
-            }
-        }
-    }
-
-    private fun animateSaveButton(onAnimationEnd: () -> Unit) {
-        binding.saveFab.animate()
-            .scaleX(0.8f)
-            .scaleY(0.8f)
-            .setDuration(100)
-            .setInterpolator(AccelerateDecelerateInterpolator())
-            .withEndAction {
-                binding.saveFab.animate()
-                    .scaleX(1f)
-                    .scaleY(1f)
-                    .setDuration(100)
-                    .setInterpolator(AccelerateDecelerateInterpolator())
-                    .withEndAction(onAnimationEnd)
-                    .start()
-            }
-            .start()
-    }
-
-    private fun showSaveBottomSheet() {
-        val selectedText = binding.pinnedEditText.text?.substring(
-            binding.pinnedEditText.selectionStart,
-            binding.pinnedEditText.selectionEnd
-        ) ?: return
-
-        val bottomSheetDialog = BottomSheetDialog(this)
-        val bottomSheetView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
-        bottomSheetDialog.setContentView(bottomSheetView)
-
-        val nameInput = bottomSheetView.findViewById<TextInputEditText>(R.id.nameInput)
-        val previewText = bottomSheetView.findViewById<TextView>(R.id.previewText)
-        val saveButton = bottomSheetView.findViewById<MaterialButton>(R.id.saveButton)
-        val cancelButton = bottomSheetView.findViewById<MaterialButton>(R.id.cancelButton)
-
-        val defaultName = selectedText.take(50).replace("\n", " ")
-            .split(" ").take(5).joinToString(" ")
-        nameInput.setText(defaultName)
-        previewText.text = selectedText
-
-        saveButton.setOnClickListener {
-            val name = nameInput.text.toString().takeIf { it.isNotBlank() } ?: defaultName
-            val selection = SavedSelection(name = name, text = selectedText)
-            saveSelection(selection)
-            bottomSheetDialog.dismiss()
-            showSuccessSnackbar("Selection saved")
-        }
-        cancelButton.setOnClickListener { bottomSheetDialog.dismiss() }
-
-        bottomSheetDialog.show()
-
-        // Force the bottom sheet to expand fully
-        val bottomSheet =
-            bottomSheetDialog.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-        bottomSheet?.let {
-            BottomSheetBehavior.from(it).state = BottomSheetBehavior.STATE_EXPANDED
-        }
-    }
-
-
-    private fun showSavedSelections() {
-        lifecycleScope.launch {
-            val selections = withContext(Dispatchers.IO) {
-                db.savedSelectionDao().getAll()
-            }
-            val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-            val recyclerView =
-                dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
-            recyclerView.layoutManager = LinearLayoutManager(this@MainActivity)
-            val dialog = MaterialAlertDialogBuilder(this@MainActivity)
-                .setView(dialogView)
-                .create()
-            var adapter: SavedSelectionsAdapter? = null
-            adapter = SavedSelectionsAdapter(
-                selections = selections,
-                onItemClick = { selection ->
-                    binding.pinnedEditText.clearSelectionPins()
-                    binding.pinnedEditText.clearSearchHighlights()
-                    binding.pinnedEditText.setText(selection.text)
-                    dialog.dismiss()
-                },
-                onDeleteClick = { selection ->
-                    showDeleteConfirmationDialog(selection) {
-                        lifecycleScope.launch {
-                            val updatedSelections = withContext(Dispatchers.IO) {
-                                db.savedSelectionDao().getAll()
-                            }
-                            adapter?.updateSelections(updatedSelections)
-                        }
-                    }
-                },
-                onEditClick = { selection ->
-                    showEditDialog(selection) {
-                        lifecycleScope.launch {
-                            val updatedSelections = withContext(Dispatchers.IO) {
-                                db.savedSelectionDao().getAll()
-                            }
-                            adapter?.updateSelections(updatedSelections)
-                        }
-                    }
-                }
-            )
-            recyclerView.adapter = adapter
-            dialog.show()
-        }
-    }
-
-    private fun setupSearchNavigation() {
-        val btnPrev = binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev)
-        val btnNext = binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext)
-        binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev).setOnClickListener {
-            binding.pinnedEditText.previousSearchResult()
-            updateSearchNavigation()
-        }
-        binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext).setOnClickListener {
-            binding.pinnedEditText.nextSearchResult()
-            updateSearchNavigation()
-        }
-        btnPrev.setOnClickListener {
-            binding.pinnedEditText.previousSearchResult()
-            updateSearchNavigation()
-        }
-        btnNext.setOnClickListener {
-            binding.pinnedEditText.nextSearchResult()
-            updateSearchNavigation()
-        }
-    }
-
-    private fun updateSearchNavigation() {
-        val resultCount = binding.pinnedEditText.getSearchResultsCount()
-        if (resultCount > 0) {
-            val current = binding.pinnedEditText.getCurrentSearchIndex()
-            binding.txtSearchCount.text = "$current/$resultCount"
-        } else {
-            binding.txtSearchCount.text = ""
-        }
-    }
-
-    private fun showDeleteConfirmationDialog(selection: SavedSelection, onDeleted: () -> Unit) {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Delete Selection")
-            .setMessage("Are you sure you want to delete '${selection.name}'?")
-            .setPositiveButton("Delete") { _, _ ->
-                lifecycleScope.launch {
-                    withContext(Dispatchers.IO) {
-                        db.savedSelectionDao().delete(selection)
-                    }
-                    onDeleted()  // Now the deletion is complete
-                    showSuccessSnackbar("Selection deleted")
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-
-    private fun showEditDialog(selection: SavedSelection, onEdited: () -> Unit) {
-        val dialogView = layoutInflater.inflate(R.layout.bottom_sheet_save, null)
-        dialogView.findViewById<MaterialButton>(R.id.cancelButton).visibility = View.GONE
-        dialogView.findViewById<MaterialButton>(R.id.saveButton).visibility = View.GONE
-        val nameInput = dialogView.findViewById<EditText>(R.id.nameInput)
-        nameInput.setText(selection.name)
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Edit Selection")
-            .setView(dialogView)
-            .setPositiveButton("Save") { _, _ ->
-                lifecycleScope.launch {
-                    val updatedSelection = selection.copy(
-                        name = nameInput.text.toString().takeIf { it.isNotBlank() }
-                            ?: selection.name
-                    )
-                    withContext(Dispatchers.IO) {
-                        db.savedSelectionDao().update(updatedSelection)
-                    }
-                    onEdited()  // Now the update is complete
-                    showSuccessSnackbar("Selection updated")
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-
-    private fun showSuccessSnackbar(message: String) {
-        Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT)
-            .setBackgroundTint(getColor(R.color.gold_primary))
-            .setTextColor(getColor(R.color.light_text_primary))
-            .show()
-    }
-
-    private fun saveSelection(selection: SavedSelection) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            db.savedSelectionDao().insert(selection)
-        }
-    }
-
-    private fun updateSelection(selection: SavedSelection) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            db.savedSelectionDao().update(selection)
-        }
-    }
-
-    private fun deleteSelection(selection: SavedSelection) {
-        lifecycleScope.launch(Dispatchers.IO) {
-            db.savedSelectionDao().delete(selection)
-        }
-    }
 }
 
 
@@ -1394,6 +1033,17 @@ class MainActivity : AppCompatActivity() {
     <string name="saved_selections_header">Your Saved Text Selections</string>
     <string name="hint_paste_text">Paste your text here</string>
     <string name="empty_counter">0/0</string>
+    <string name="selection_saved">Selection saved</string>
+    <string name="no_selections">No selections available</string>
+    <string name="delete_selection">Delete Selection</string>
+    <string name="delete_confirmation">Are you sure you want to delete %1$s?</string>
+    <string name="delete">Delete</string>
+    <string name="selection_deleted">Selection deleted</string>
+    <string name="dialog_edit_selection">Edit Selection</string>
+    <string name="edit_selection">Edit Selection</string>
+    <string name="selection_updated">Selection updated</string>
+    <string name="about">About</string>
+    <string name="ok">OK</string>
 </resources>
 
 
@@ -1440,7 +1090,7 @@ class MainActivity : AppCompatActivity() {
     </com.google.android.material.appbar.AppBarLayout>
 
     <!-- Main text area -->
-    <com.example.textselector.PinnedEditText
+    <com.example.textselector.ui.PinnedEditText
         android:id="@+id/pinnedEditText"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -1451,19 +1101,6 @@ class MainActivity : AppCompatActivity() {
         android:padding="16dp"
         android:textSize="16sp"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" />
-
-    <!-- Floating Action Button -->
-    <com.example.textselector.CustomFloatingActionButton
-        android:id="@+id/saveFab"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_marginEnd="16dp"
-        android:layout_marginBottom="70dp"
-        android:contentDescription="@string/save"
-        android:src="@drawable/ic_save"
-        app:backgroundTint="@color/gold_primary"
-        app:tint="?attr/colorOnPrimary" />
 
     <!-- Search navigation controls -->
     <LinearLayout
@@ -1560,6 +1197,24 @@ class MainActivity : AppCompatActivity() {
         android:clipToPadding="false"/>
 
 </LinearLayout>
+
+
+
+# res/layout/dialog_edit_selection.xml
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <EditText
+        android:id="@+id/nameInput"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/selection_name"/>
+</LinearLayout>
+
 
 
 
@@ -1714,7 +1369,8 @@ class MainActivity : AppCompatActivity() {
 
 # res/layout/activity_main.xml
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.coordinatorlayout.widget.CoordinatorLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -1755,7 +1411,7 @@ class MainActivity : AppCompatActivity() {
         android:fillViewport="true"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <com.example.textselector.PinnedEditText
+        <com.example.textselector.ui.PinnedEditText
             android:id="@+id/pinnedEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -1768,7 +1424,8 @@ class MainActivity : AppCompatActivity() {
             app:layout_behavior="@string/appbar_scrolling_view_behavior" />
     </androidx.core.widget.NestedScrollView>
 
-    <com.example.textselector.CustomFloatingActionButton
+    <!-- Use the standard Material FAB instead of a custom one -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/saveFab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

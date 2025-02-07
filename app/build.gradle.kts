@@ -26,26 +26,46 @@ android {
             )
         }
     }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
+
     kotlinOptions {
         jvmTarget = "11"
     }
+
     buildFeatures {
         viewBinding = true
     }
 }
 
 dependencies {
+    // AndroidX Core and AppCompat
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+
+    // Material Design
     implementation(libs.material)
+
+    // Room Database
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     ksp(libs.androidx.room.compiler)
+
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    // Coroutines
+    implementation(libs.kotlinx.coroutines)
+
+    // Lifecycle components
+    implementation(libs.androidx.lifecycle.viewmodel)
+    implementation(libs.androidx.lifecycle.runtime)
+
+    // Activity KTX
+    implementation(libs.androidx.activity)
 }
