@@ -21,6 +21,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.example.textselector.R
 import com.example.textselector.data.SavedSelection
 import com.example.textselector.databinding.ActivityMainBinding
@@ -294,20 +295,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSavedSelections() {
-        val selections = viewModel.savedSelections.value
-        if (selections.isNullOrEmpty()) {
-            showSnackbar(getString(R.string.no_selections))
-            return
-        }
         val dialogView = layoutInflater.inflate(R.layout.dialog_saved_selections, null)
-        val recyclerView = dialogView.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.savedSelectionsRecyclerView)
+        val recyclerView = dialogView.findViewById<RecyclerView>(R.id.savedSelectionsRecyclerView)
         recyclerView.layoutManager = LinearLayoutManager(this)
 
         val alertDialog = MaterialAlertDialogBuilder(this)
             .setView(dialogView)
             .create()
 
-        val adapter = SavedSelectionsAdapter(selections,
+        // Initialize adapter with empty list.
+        val adapter = SavedSelectionsAdapter(emptyList(),
             onItemClick = { selection ->
                 binding.pinnedEditText.clearSelectionPins()
                 binding.pinnedEditText.clearSearchHighlights()
@@ -318,6 +315,23 @@ class MainActivity : AppCompatActivity() {
             onEditClick = { selection -> showEditDialog(selection) }
         )
         recyclerView.adapter = adapter
+
+        // Create and attach an observer.
+        val selectionsObserver = Observer<List<SavedSelection>> { newSelections ->
+            if (newSelections.isNullOrEmpty()) {
+                alertDialog.dismiss()
+                showSnackbar(getString(R.string.no_selections))
+            } else {
+                adapter.updateSelections(newSelections)
+            }
+        }
+        viewModel.savedSelections.observe(this, selectionsObserver)
+
+        // Remove observer when dialog is dismissed.
+        alertDialog.setOnDismissListener {
+            viewModel.savedSelections.removeObserver(selectionsObserver)
+        }
+
         alertDialog.show()
     }
 
