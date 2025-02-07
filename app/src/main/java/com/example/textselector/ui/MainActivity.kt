@@ -49,6 +49,8 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.pinnedEditText.showSoftInputOnFocus = false
+
         savedInstanceState?.let {
             wasSearchExpanded = it.getBoolean("wasSearchExpanded", false)
             savedSearchQuery = it.getString("savedSearchQuery")
