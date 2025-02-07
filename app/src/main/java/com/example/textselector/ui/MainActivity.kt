@@ -18,6 +18,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Observer
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.textselector.R
 import com.example.textselector.data.SavedSelection
@@ -27,6 +28,12 @@ import com.example.textselector.ui.viewmodel.MainViewModelFactory
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -36,6 +43,18 @@ class MainActivity : AppCompatActivity() {
     private var searchMenuItem: MenuItem? = null
     private var wasSearchExpanded = false
     private var savedSearchQuery: String? = null
+
+    fun SearchView.queryTextChanges(): Flow<String> = callbackFlow {
+        val listener = object : SearchView.OnQueryTextListener {
+            override fun onQueryTextSubmit(query: String?) = true
+            override fun onQueryTextChange(newText: String?) : Boolean {
+                trySend(newText.orEmpty())
+                return true
+            }
+        }
+        setOnQueryTextListener(listener)
+        awaitClose { setOnQueryTextListener(null) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val prefs = getSharedPreferences("TextSelectorPrefs", Context.MODE_PRIVATE)
@@ -88,6 +107,11 @@ class MainActivity : AppCompatActivity() {
         binding.pinnedEditText.setOnEditorActionListener { _, actionId, _ ->
             if (actionId == EditorInfo.IME_ACTION_SEARCH) {
                 binding.pinnedEditText.nextSearchResult()
+                binding.nestedScrollView?.post {
+                    centerSearchResult()
+                } ?: binding.pinnedEditText.post {
+                    binding.pinnedEditText.centerOffsetInView(binding.pinnedEditText.selectionStart)
+                }
                 updateSearchNavigation()
                 true
             } else false
@@ -100,6 +124,23 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    private fun centerSearchResult() {
+        val scrollView = binding.nestedScrollView ?: return
+        val editText = binding.pinnedEditText
+        val layout = editText.layout ?: return
+
+        val offset = editText.selectionStart
+        val line = layout.getLineForOffset(offset)
+        // Get the vertical center of the found line
+        val lineCenter = (layout.getLineTop(line) + layout.getLineBottom(line)) / 2
+
+        val editTextTop = editText.top
+        // Instead of scrollView.height/2, use 40% of scrollView height (adjust as needed)
+        val targetScrollY = editTextTop + lineCenter - (scrollView.height * 0.4).toInt()
+
+        scrollView.smoothScrollTo(0, targetScrollY.coerceAtLeast(0))
+    }
+
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("wasSearchExpanded", searchMenuItem?.isActionViewExpanded ?: false)
         outState.putString("savedSearchQuery", searchView?.query?.toString())
@@ -110,20 +151,21 @@ class MainActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_main, menu)
         searchMenuItem = menu.findItem(R.id.action_search)
         searchView = searchMenuItem?.actionView as? SearchView
-        searchView?.apply {
-            queryHint = getString(R.string.search_term)
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    binding.pinnedEditText.nextSearchResult()
-                    updateSearchNavigation()
-                    return true
-                }
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    binding.pinnedEditText.updateSearch(newText.orEmpty())
-                    updateSearchNavigation()
-                    return true
-                }
-            })
+        searchView?.let { sv ->
+            sv.queryHint = getString(R.string.search_term)
+            lifecycleScope.launch {
+                sv.queryTextChanges()
+                    .debounce(300)
+                    .collectLatest { query ->
+                        binding.pinnedEditText.updateSearch(query)
+                        updateSearchNavigation()
+                        binding.nestedScrollView?.post {
+                            centerSearchResult()
+                        } ?: binding.pinnedEditText.post {
+                            binding.pinnedEditText.centerOffsetInView(binding.pinnedEditText.selectionStart)
+                        }
+                    }
+            }
         }
         if (wasSearchExpanded) {
             searchMenuItem?.expandActionView()
@@ -190,15 +232,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // Implements search navigation using arrow buttons if available.
     private fun setupSearchNavigation() {
         binding.searchNavigation.findViewById<ImageButton>(R.id.btnPrev).setOnClickListener {
             binding.pinnedEditText.previousSearchResult()
-            updateSearchNavigation()
+            // Wait a moment for the selection to update, then center the result:
+            binding.pinnedEditText.post {
+                centerSearchResult()
+                updateSearchNavigation()
+            }
         }
         binding.searchNavigation.findViewById<ImageButton>(R.id.btnNext).setOnClickListener {
             binding.pinnedEditText.nextSearchResult()
-            updateSearchNavigation()
+            binding.pinnedEditText.post {
+                centerSearchResult()
+                updateSearchNavigation()
+            }
         }
     }
 

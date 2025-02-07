@@ -52,6 +52,19 @@ class PinnedEditText @JvmOverloads constructor(
         return requestRectangleOnScreen(rect, true)
     }
 
+    fun centerOffsetInView(offset: Int) {
+        val layout = layout ?: return
+        val line = layout.getLineForOffset(offset)
+        val lineTop = layout.getLineTop(line)
+        val lineBottom = layout.getLineBottom(line)
+        val lineCenter = (lineTop + lineBottom) / 2
+
+        val viewHeight = height
+        val desiredScrollY = lineCenter - viewHeight / 2
+
+        scrollTo(scrollX, desiredScrollY.coerceAtLeast(0))
+    }
+
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
@@ -146,7 +159,6 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = 0
             val range = searchResults[0]
             setSelection(range.first, range.last + 1)
-            post { bringPointIntoView(range.first) }
         }
     }
 
@@ -165,7 +177,6 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            post { bringPointIntoView(range.first) }
         }
     }
 
@@ -174,7 +185,6 @@ class PinnedEditText @JvmOverloads constructor(
             currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
             val range = searchResults[currentSearchIndex]
             setSelection(range.first, range.last + 1)
-            post { bringPointIntoView(range.first) }
         }
     }
 
