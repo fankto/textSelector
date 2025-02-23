@@ -45,7 +45,7 @@ We may update our Privacy Policy from time to time. We will notify you of any ch
 
 If you have any questions about this Privacy Policy, please contact us:
 - Email: tobias.fankhauser@outlook.de
-- GitHub: https://github.com/TobiFank
+- GitHub: https://github.com/fankto
 
 ## Your Consent
 

@@ -118,7 +118,7 @@ Please check each library's specific license terms for their usage restrictions.
 ## Support
 If you find textSelector useful, consider supporting its development:
 
-[Buy me a token!](https://buymeacoffee.com/TobiFank)
+[Buy me a token!](https://buymeacoffee.com/fankto)
 
 ![Buy me a token QR Code](images/buymeatokenqr.png)
 

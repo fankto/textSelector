@@ -407,7 +407,7 @@ class MainActivity : AppCompatActivity() {
         
         <h3>Contact & Links</h3>
         <p>Developer: Tobias Fankhauser</p>
-        <p>Visit my <a href="https://github.com/TobiFank">GitHub</a> for source code and updates.</p>
+        <p>Visit my <a href="https://github.com/fankto">GitHub</a> for source code and updates.</p>
         <p>Connect with me on <a href="https://www.linkedin.com/in/tobias-fankhauser">LinkedIn</a>.</p>
         
         <h3>Feedback</h3>
